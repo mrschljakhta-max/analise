@@ -3,44 +3,44 @@
 Це **серверний фундамент**, а не запущена виробнича система. Код поки не розгорнутий у Cloudflare; існуючий GitHub Pages працює окремо, на штучних даних.
 
 ## Безпека
-- Усі \`/api/*\` запити перевіряють Cloudflare Access JWT (підпис, issuer та audience) і статус користувача у D1.
+- Усі `/api/*` запити перевіряють Cloudflare Access JWT (підпис, issuer та audience) і статус користувача у D1.
 - Якщо Access не налаштований або немає токена, доступ закритий.
-- Перший адміністратор допускається тільки з email \`ADMIN_EMAIL\`, який **вже** підтверджено Access; інші користувачі додаються адміністратором.
+- Перший адміністратор допускається тільки з email `ADMIN_EMAIL`, який **вже** підтверджено Access; інші користувачі додаються адміністратором.
 - Сховище R2 приватне, жодних публічних посилань на оригінали.
-- Завантаження файлів вимкнене (\`FILE_UPLOAD_ENABLED = "false"\`) до перевірки конфігурації.
+- Завантаження файлів вимкнене (`FILE_UPLOAD_ENABLED = "false"`) до перевірки конфігурації.
 - Публічний GitHub Pages залишається лише демо. Для реальних документів обов'язково потрібен закритий домен під Access; не вказуйте його API у загальнодоступній демоверсії.
 - Не додавайте ключі API, токени, службові дані або email персоналу до репозиторію.
 
 ## Підготовка Cloudflare (виконати у власному захищеному середовищі)
 1. Створіть Cloudflare-акаунт/зону, якщо ще немає, та налаштуйте Zero Trust / Access.
 2. Обмежте доступ до окремого hostname API через Access: allowlist лише дозволених email, MFA.
-3. Встановіть Node.js та запустіть у папці \`api\`:
-   \`\`\`bash
+3. Встановіть Node.js та запустіть у папці `api`:
+   ```bash
    npm install
    npx wrangler login
    npx wrangler d1 create analise-db
    npx wrangler r2 bucket create analise-private-documents
-   \`\`\`
-4. Скопіюйте отриманий \`database_id\` D1 у \`wrangler.toml\`. Це не секрет, але ніколи не завантажуйте туди дані без контролю доступу.
-5. У конфігурації задайте \`ACCESS_TEAM_DOMAIN\` (наприклад \`https://team.cloudflareaccess.com\`), \`ACCESS_AUD\` з Access Application, \`ADMIN_EMAIL\` першого адміністратора. Для локальної конфігурації використовуйте некомітовані файли / захищені змінні, не надсилайте секрети в чат.
+   ```
+4. Скопіюйте отриманий `database_id` D1 у `wrangler.toml`. Це не секрет, але ніколи не завантажуйте туди дані без контролю доступу.
+5. У Cloudflare Worker → Settings → Variables and Secrets додайте **секрети** `ACCESS_TEAM_DOMAIN` (наприклад `https://team.cloudflareaccess.com`), `ACCESS_AUD` з Access Application і `ADMIN_EMAIL` першого адміністратора. Не записуйте ці значення до GitHub. Browser-only кроки: [CLOUDFLARE_SETUP.md](../CLOUDFLARE_SETUP.md).
 6. Перевірте, що Access захищає **фактичний** hostname Worker (зокрема workers.dev, якщо він увімкнений).
 7. Застосуйте схему й розгорніть:
-   \`\`\`bash
+   ```bash
    npx wrangler d1 migrations apply analise-db --remote
    npx wrangler deploy
-   \`\`\`
-8. Увійдіть під email адміністратора через Cloudflare Access. Лише після перевірки endpoint /api/me, ролей, відмов для сторонніх, приватності R2 і резервування — змінюйте \`FILE_UPLOAD_ENABLED\` на true.
+   ```
+8. Увійдіть під email адміністратора через Cloudflare Access. Лише після перевірки endpoint /api/me, ролей, відмов для сторонніх, приватності R2 і резервування — змінюйте `FILE_UPLOAD_ENABLED` на true.
 
 **Примітка:** Worker наразі не під'єднаний до GitHub Pages. Обов'язкова наступна задача — перенесення робочого інтерфейсу на захищений hostname із same-origin /api. Відкритий сайт не повинен надсилати службові документи до API.
 
 ## Маршрути (всі за Access)
-- \`GET /api/me\` — поточна авторизована роль.
-- \`GET /api/health\` — стан підключень без приватного вмісту.
-- \`GET /api/records\`, \`POST /api/records\` — адміністративні тестові записи.
-- \`PATCH /api/records/:id\`, \`DELETE /api/records/:id\` — версійне редагування / м'яке видалення.
-- \`GET /api/references\`, \`POST /api/references\`, \`PATCH /api/references/:id\`, \`DELETE /api/references/:id\` — довідники.
-- \`GET /api/audit/:recordId\` — історія доступного запису.
-- \`GET /api/users\`, \`POST /api/users\` — лише адміністратор.
-- \`GET /api/files\`, \`POST /api/files\`, \`GET /api/files/:id/download\` — приватне файлове сховище. Завантаження наразі вимкнене.
+- `GET /api/me` — поточна авторизована роль.
+- `GET /api/health` — стан підключень без приватного вмісту.
+- `GET /api/records`, `POST /api/records` — адміністративні тестові записи.
+- `PATCH /api/records/:id`, `DELETE /api/records/:id` — версійне редагування / м'яке видалення.
+- `GET /api/references`, `POST /api/references`, `PATCH /api/references/:id`, `DELETE /api/references/:id` — довідники.
+- `GET /api/audit/:recordId` — історія доступного запису.
+- `GET /api/users`, `POST /api/users` — лише адміністратор.
+- `GET /api/files`, `POST /api/files`, `GET /api/files/:id/download` — приватне файлове сховище. Завантаження наразі вимкнене.
 
 Жодні оперативні позиції, відомості про частоти чи військові засоби в тестовій схемі не моделюються. Парсер службових документів, конфлікти масового імпорту, DOC-конвертація та повноцінна версійність звітів є окремими майбутніми етапами. Не використовуйте API як виробничу систему до приймальних випробувань.
