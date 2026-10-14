@@ -34,6 +34,14 @@ table{border-collapse:collapse;width:100%;font-size:12px;text-align:left}th{padd
 @media(max-width:1120px){.sidebar{width:206px}.content{padding:27px 22px}.topbar{padding:0 22px}.stats{grid-template-columns:repeat(2,1fr)}.refgrid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:760px){.app{display:block}.sidebar{height:auto;position:relative;width:100%;padding:12px;border-right:0;border-bottom:1px solid #294156}.brand{margin:4px 0 12px}.nav{display:flex;overflow:auto;gap:3px}.navtitle,.sidefoot{display:none}.nav button{width:auto;flex-shrink:0;padding:9px 10px}.nav button .ico{display:none}.topbar{height:56px;padding:0 14px}.topuser{display:none}.pill{padding:7px}.content{padding:24px 14px}.pagehead{align-items:start;flex-direction:column}.pagehead h1{font-size:27px}.grid2,.refgrid,.checklist,.formgrid{grid-template-columns:1fr}.stats{gap:10px}.stat{padding:16px;min-height:119px}.stat .value{font-size:27px}.panel{padding:17px}.hero{padding:20px;display:block}.spark{height:70px}.actions{width:100%}.filt .field{min-width:150px}.breadcrumbs{display:none}}
 @media print{body{background:white!important;color:black!important}.app,.toast,.overlay{display:none!important}#print-area{display:block!important;color:#222;padding:20px;font:12px Arial,sans-serif}#print-area h1{font-size:24px}#print-area table th,#print-area table td{color:#222;border:1px solid #ccc}#print-area p{color:#555}}
+
+.structured-table-scroll{max-height:540px;max-width:100%;overflow:auto}
+.structured-table-scroll table{min-width:960px}
+.structured-table-scroll th{position:sticky;top:0;z-index:2;background:#17364b;white-space:nowrap}
+.structured-table-scroll td{max-width:320px;overflow-wrap:anywhere}
+.structured-station td{color:#6de9da;font-weight:800;background:#0f3341}
+.structured-pages{align-items:center;justify-content:flex-start}
+@media(min-width:900px){.structured-table-scroll table:has(th:nth-child(30)){min-width:2900px}}
 </style>
 </head>
 <body>
@@ -62,6 +70,7 @@ table{border-collapse:collapse;width:100%;font-size:12px;text-align:left}th{padd
 </div>
 </div>
 <div id="modal-root"></div><div id="toast-root"></div><div id="print-area"></div>
+<script src="./template-import.js?v=20261014-1"></script>
 <script>
 "use strict";
 (function(){
@@ -84,7 +93,7 @@ function header(eyebrow,title,subtitle,buttons){return '<div class="pagehead"><d
 function rows(){return state.records.filter(function(r){return !r.deleted})}
 function stat(label,num,hint,ico,hl){return '<div class="stat '+(hl?"highlight":"")+'"><div class="label">'+esc(label)+'</div><div class="sico">'+ico+'</div><div class="value">'+esc(num)+'</div><div class="hint">'+esc(hint)+'</div></div>'}
 function shortDate(s){return stamp(s).slice(0,16).replace(/-/g,".")}
-function tag(s){var m={new:"good",same:"info",update:"warn",error:"bad",conflict:"bad",skipped:"info",done:"good"};var names={new:"Новий",same:"Збіг",update:"Оновлення",error:"Помилка",conflict:"Конфлікт",skipped:"Пропущено",done:"Завершено"};return '<span class="tag '+(m[s]||"")+'">'+esc(names[s]||s)+'</span>'}
+function tag(s){var m={new:"good",same:"info",update:"warn",error:"bad",conflict:"bad",skipped:"info",done:"good",checked:"info"};var names={new:"Новий",same:"Збіг",update:"Оновлення",error:"Помилка",conflict:"Конфлікт",skipped:"Пропущено",done:"Завершено",checked:"Перевірено"};return '<span class="tag '+(m[s]||"")+'">'+esc(names[s]||s)+'</span>'}
 function nav(to){if(to==="maps"){toast("Карти перенесені за межі першої версії згідно з ТЗ 0.2");return}state.view=to;state.search="";render();window.scrollTo(0,0)}
 document.getElementById("nav").addEventListener("click",function(e){var b=e.target.closest("[data-view]");if(b)nav(b.dataset.view)});
 function render(){document.getElementById("crumb").textContent=views[state.view];document.getElementById("user-label").textContent=state.role==="admin"?"Адміністратор · демо":"Черговий · демо";document.querySelectorAll("#nav button").forEach(function(b){b.classList.toggle("active",b.dataset.view===state.view)});var m={overview:overview,imports:importsView,records:recordsView,references:refsView,reports:reportsView,audit:auditView,admin:adminView};node.innerHTML=m[state.view]();}
@@ -104,12 +113,12 @@ return header("РЕЄСТР ДАНИХ","Журнал записів","Синт�
 function fileStatus(f){return '<tr><td><b>'+esc(f.name)+'</b><div class="hintline">'+esc(f.date)+'</div></td><td>'+esc(f.kind)+'</td><td>'+tag(f.status)+'</td><td>'+esc(f.message)+'</td></tr>'}
 function importsView(){
 var st=state.staged;
-return header("ЦЕНТР ІМПОРТУ","Завантаження і перевірка","Перевіряй тестові документи перед внесенням до журналу. Підтримується стандартний навчальний профіль ТЗ 0.2.",btn("↓ Зразок XLSX","",'data-action="sample-xlsx"')+btn("↓ Зразок DOCX","",'data-action="sample-docx"'))+
+return header("ЦЕНТР ІМПОРТУ","Завантаження і перевірка","Перевіряй тестові документи перед внесенням до журналу. Підтримуються погоджений Excel «Запити» (30 колонок), Word 3.2 (4 колонки) та навчальні приклади.",btn("↓ Зразок XLSX","",'data-action="sample-xlsx"')+btn("↓ Зразок DOCX","",'data-action="sample-docx"'))+
 '<div class="steps"><span class="'+(!st?"on":"")+'">01 · Файл</span><i>→</i><span class="'+(st?"on":"")+'">02 · Розпізнавання</span><i>→</i><span class="'+(st?"on":"")+'">03 · Перевірка</span><i>→</i><span>04 · Підтвердження</span></div>'+
-'<div class="panel"><div class="drop" id="drop"><div class="uploadicon">⇧</div><h3>Перетягни документ сюди</h3><p>Або обери файл із комп’ютера. Розбір здійснюється локально в браузері в межах тестової сесії.</p>'+btn("Обрати DOCX / XLSX","primary",'data-action="select-file"')+'<input id="file-input" type="file" accept=".doc,.docx,.xlsx" hidden><div style="margin-top:16px"><small>DOC підтримуватиметься після підключення ізольованого серверного конвертера</small></div></div><p class="footnote">Профіль демонстрації: «Код», «Дата і час», «Категорія», «Примітка»; блоки «Джерело А/Б». Невідомі структури не імпортуються автоматично.</p></div>'+
+'<div class="panel"><div class="drop" id="drop"><div class="uploadicon">⇧</div><h3>Перетягни документ сюди</h3><p>Або обери файл із комп’ютера. Розбір здійснюється локально в браузері в межах тестової сесії.</p>'+btn("Обрати DOCX / XLSX","primary",'data-action="select-file"')+'<input id="file-input" type="file" accept=".doc,.docx,.xlsx" hidden><div style="margin-top:16px"><small>DOC підтримуватиметься після підключення ізольованого серверного конвертера</small></div></div><p class="footnote">Погоджені шаблони Excel та Word перевіряються локально. У Word дата/час та азимут/населений пункт відображаються окремо. Кнопки «Зразок» створюють навчальні файли. Запис у Cloudflare D1 у цій демоверсії відсутній.</p></div>'+
 (st?preview(st):"")+
 '<div class="panel"><div class="panelhead"><h2>Історія імпорту</h2><span class="tag">'+state.imports.length+' партій</span></div>'+(state.imports.length?'<div class="tablewrap"><table><thead><tr><th>Документ</th><th>Формат</th><th>Статус</th><th>Результат</th></tr></thead><tbody>'+state.imports.map(fileStatus).join("")+'</tbody></table></div>':'<div class="empty">Партій імпорту ще немає</div>')+'</div>'}
-function preview(st){
+function preview(st){if(st.structured)return structuredPreview(st);
 var n={new:0,same:0,update:0,error:0,conflict:0};st.lines.forEach(function(r){n[r.status]=(n[r.status]||0)+1});
 var block=n.error+n.conflict>0||st.duplicate;
 return '<div class="panel"><div class="panelhead"><h2>Попередній перегляд — '+esc(st.name)+'</h2>'+tag(block?"error":"done")+'</div><div class="recordmeta"><span>'+st.lines.length+' рядків</span><span>'+n.new+' нових</span><span>'+n.same+' збігів</span><span>'+n.update+' оновлень</span><span class="badtext">'+(n.error+n.conflict)+' проблем</span></div>'+
@@ -154,8 +163,109 @@ function parseXlsx(entries){
 var sheet=entries["xl/worksheets/sheet1.xml"];if(!sheet)throw Error("У XLSX не знайдено першого аркуша");var strings=[];if(entries["xl/sharedStrings.xml"]){var sd=xml(entries["xl/sharedStrings.xml"]);descendants(sd,"si").forEach(function(si){strings.push(textOf(si))})}
 var d=xml(sheet),data=[],source="",headers=false;descendants(d,"row").forEach(function(row){var cells={};direct(row,"c").forEach(function(c){var addr=c.getAttribute("r")||"",col=(addr.match(/^[A-Z]+/)||[])[0],val=first(c,"v"),typ=c.getAttribute("t"),value=typ==="inlineStr"?textOf(c):val?val.textContent||"":"";if(typ==="s")value=strings[Number(value)]||"";cells[col]=String(value).trim()});var values=["A","B","C","D"].map(function(c){return cells[c]||""}),count=Object.keys(cells).length;if(count===1&&/^Джерело\s+[АБAB]$/i.test(values[0])){source=values[0].replace(/A$/,"А").replace(/B$/,"Б");return}if(values[0]==="Код"&&values[1]==="Дата і час"&&values[2]==="Категорія"){headers=true;return}if(headers&&source&&values.some(Boolean))data.push({source:source,code:values[0],at:values[1],category:values[2],note:values[3],line:row.getAttribute("r")||"?"})});if(!headers||!data.length)throw Error("Не знайдено рядки погодженого синтетичного профілю");return data}
 async function sha(buffer){var digest=await crypto.subtle.digest("SHA-256",buffer);return Array.from(new Uint8Array(digest)).map(function(v){return v.toString(16).padStart(2,"0")}).join("")}
-async function importFile(file){if(file.size>8*1024*1024)throw Error("Максимальний розмір демонстраційного файла — 8 МБ");var ext=file.name.split(".").pop().toLowerCase();if(ext==="doc")throw Error("DOC потребує захищеного серверного конвертера; в демо не підтримується");if(!["docx","xlsx"].includes(ext))throw Error("Потрібен документ DOCX або XLSX");var bytes=await file.arrayBuffer(),hash=await sha(bytes),entries=await unzip(bytes),parsed=ext==="docx"?parseDocx(entries):parseXlsx(entries);
+async function importLegacyFile(file){if(file.size>8*1024*1024)throw Error("Максимальний розмір демонстраційного файла — 8 МБ");var ext=file.name.split(".").pop().toLowerCase();if(ext==="doc")throw Error("DOC потребує захищеного серверного конвертера; в демо не підтримується");if(!["docx","xlsx"].includes(ext))throw Error("Потрібен документ DOCX або XLSX");var bytes=await file.arrayBuffer(),hash=await sha(bytes),entries=await unzip(bytes),parsed=ext==="docx"?parseDocx(entries):parseXlsx(entries);
 var lines=parsed.map(function(r){var at=parseDatetime(r.at),issue="";if(!r.code||!at||!state.refs.source.includes(r.source)||!state.refs.category.includes(r.category))issue="Некоректні дата, код або значення довідника";var old=state.records.find(function(x){return !x.deleted&&x.source===r.source&&x.code===r.code});var status=issue?"error":!old?"new":old.at===at&&old.category===r.category&&old.note===r.note?"same":"update";return Object.assign({},r,{at:at,status:status,issue:issue,old:old?old.id:null})});var duplicate=state.imports.some(function(b){return b.hash===hash&&b.status==="done"});state.staged={name:file.name,ext:ext,hash:hash,lines:lines,duplicate:duplicate};nav("imports");toast("Розпізнано "+lines.length+" рядків")}
+
+async function importFile(file){
+ if(!file||file.size>8*1024*1024)throw Error("Файл відсутній або перевищує 8 МБ");
+ const extension=(file.name.split(".").pop()||"").toLowerCase();
+ if(!["docx","xlsx"].includes(extension))throw Error("Потрібен файл DOCX або XLSX");
+ if(!window.ANALISE_TEMPLATE_IMPORT)throw Error("Модуль структурного імпорту не завантажено. Онови сторінку Ctrl+Shift+R.");
+ let structured=null,standardError=null;
+ try{structured=await window.ANALISE_TEMPLATE_IMPORT.parse(file)}
+ catch(err){standardError=err}
+ if(structured){
+   const normalized=window.ANALISE_TEMPLATE_IMPORT.normalize(structured);
+   if(!normalized.records.length)throw Error("У погодженому шаблоні немає рядків для перегляду");
+   const hash=await sha(await file.arrayBuffer());
+   state.staged={structured:true,name:file.name,ext:extension,hash,parsed:structured,
+     structuredData:normalized,page:0,filter:"",showOriginal:false,duplicate:false,confirmed:false};
+   nav("imports");
+   toast("Структуру розпізнано: "+normalized.records.length+" рядків");
+   return;
+ }
+ try{await importLegacyFile(file)}
+ catch(legacyError){
+   throw Error("Погоджений шаблон: "+(standardError?.message||"невідомий формат")+
+     ". Навчальний шаблон: "+legacyError.message);
+ }
+}
+function structuredFiltered(st){
+ const query=(st.filter||"").trim().toLocaleLowerCase("uk");
+ return (st.structuredData.records||[]).filter(function(row){
+   if(!query)return true;
+   const values=st.structuredData.kind==="word"?
+     [row.station,row.event_date,row.event_time,row.type,row.azimuth,row.settlement,row.result,
+      row.datetime_original,row.location_original]:
+     row.cells;
+   return values.some(function(v){return String(v??"").toLocaleLowerCase("uk").includes(query)})
+ });
+}
+function structuredTable(st){
+ const data=st.structuredData,word=data.kind==="word",orig=word&&st.showOriginal;
+ const headers=orig?["Станція","Час і дата (оригінал)","Тип","Азимут і населений пункт (оригінал)","Результат","Перевірка"]:
+   word?["Станція","Дата","Час","Тип","Азимут","Населений пункт","Результат","Перевірка"]:
+   data.headers.map(function(v,i){return v||"Колонка "+(i+1)});
+ const filtered=structuredFiltered(st),pages=Math.max(1,Math.ceil(filtered.length/25));
+ st.page=Math.min(Math.max(st.page||0,0),pages-1);
+ const current=filtered.slice(st.page*25,(st.page+1)*25);
+ let lastStation="";
+ const body=current.map(function(r){
+   let vals;
+   if(word)vals=orig?
+     [r.station,r.datetime_original,r.type,r.location_original,r.result,r.problems.join("; ")||"Готово"]:
+     [r.station,r.event_date,r.event_time,r.type,r.azimuth,r.settlement,r.result,r.problems.join("; ")||"Готово"];
+   else vals=r.cells;
+   const group=word&&r.station!==lastStation?
+     '<tr class="structured-station"><td colspan="'+headers.length+'">'+esc(r.station||"Станція невідома")+'</td></tr>':"";
+   if(word)lastStation=r.station;
+   return group+'<tr>'+vals.map(function(value){return '<td>'+esc(value===null||value===undefined||value===""?"—":value)+'</td>'}).join("")+'</tr>';
+ }).join("");
+ return '<p class="footnote">Знайдено '+filtered.length+' рядків · сторінка '+(st.page+1)+' з '+pages+'. Поля зберігають вихідні значення для звіряння.</p>'+
+   '<div class="tablewrap structured-table-scroll"><table><thead><tr>'+headers.map(function(h){return '<th>'+esc(h)+'</th>'}).join("")+
+   '</tr></thead><tbody>'+body+'</tbody></table></div>'+
+   '<div class="actions structured-pages" style="margin-top:12px">'+
+   btn("← Назад","",'data-action="structured-prev" '+(st.page===0?"disabled":""))+
+   '<span class="tag">Сторінка '+(st.page+1)+' / '+pages+'</span>'+
+   btn("Далі →","",'data-action="structured-next" '+(st.page>=pages-1?"disabled":""))+'</div>';
+}
+function structuredPreview(st){
+ const data=st.structuredData,rows=data.records||[],errors=rows.filter(function(r){return r.problems?.length}).length,
+   word=data.kind==="word",warnings=data.warnings||[];
+ const duplicate=state.imports.some(function(i){return i.hash===st.hash&&i.status==="checked"});
+ const warnHtml=warnings.length?'<div class="banner"><strong>Попередження:</strong> '+
+   warnings.slice(0,8).map(esc).join(" · ")+'</div>':"";
+ return '<div class="panel"><div class="panelhead"><div><h2>Структурний перегляд: '+esc(st.name)+'</h2>'+
+   '<p class="paneldesc">'+esc(st.parsed.profile)+' · Без передачі файлу на сервер</p></div><span class="tag good">Розпізнано</span></div>'+
+   '<div class="recordmeta"><span>Рядків: '+rows.length+'</span><span>Колонок джерела: '+st.parsed.columns+
+   '</span><span class="'+(errors?"badtext":"")+'">Потрібна перевірка: '+errors+'</span></div>'+
+   warnHtml+(duplicate?'<div class="banner">Той самий файл уже перевірявся в цій сесії.</div>':"")+
+   (word?'<p class="footnote">Дата і час та азимут і населений пункт розділені; назва станції визначається з об’єднаного рядка. Оригінальні дані доступні для звіряння.</p>':
+     '<p class="footnote">Excel: 30 колонок еталонного аркуша «Запити», числові значення часу показані як ГГ:ХХ; жодні вихідні клітинки не змінено.</p>')+
+   '<div class="filt"><input type="search" id="structured-search" class="field" placeholder="Пошук у перегляді…" value="'+esc(st.filter||"")+'">'+
+   (word?btn(st.showOriginal?"Показати розділені поля":"Показати оригінал","",'data-action="structured-original"'):"")+'</div>'+
+   '<div id="structured-preview-table">'+structuredTable(st)+'</div>'+
+   '<div class="actions" style="margin-top:18px">'+
+   btn("✓ Завершити локальну перевірку","primary",(errors||duplicate)?'disabled':'data-action="structured-confirm"')+
+   btn("Скасувати","quiet",'data-action="cancel-import"')+'</div>'+
+   '<p class="footnote">Це локальна перевірка структури, а не імпорт у серверну базу. Поточний деможурнал на цьому сайті використовує іншу навчальну схему.</p></div>';
+}
+function confirmStructured(){
+ const st=state.staged;
+ if(!st||!st.structured)return;
+ if(st.structuredData.records.some(function(r){return r.problems?.length})){
+   toast("Є рядки, які потрібно перевірити вручну");return;
+ }
+ if(state.imports.some(function(i){return i.hash===st.hash&&i.status==="checked"})){
+   toast("Цей файл уже перевіряли");return;
+ }
+ state.imports.unshift({name:st.name,kind:st.ext.toUpperCase(),status:"checked",
+   message:"Локально перевірено "+st.structuredData.records.length+" записів; D1 не змінено",
+   date:now(),hash:st.hash});
+ audit("Перевірено структуру",st.name+" · "+st.structuredData.records.length+" рядків");
+ state.staged=null;render();toast("Перевірка завершена, дані на сервер не передавались");
+}
+
 function confirmImport(){var st=state.staged;if(!st)return;if(st.duplicate||st.lines.some(function(l){return l.status==="error"||l.status==="conflict"})){toast("Спочатку усунь помилки");return}
 var added=0,updated=0;st.lines.forEach(function(l){if(l.status==="new"){state.records.push({id:safeId(),source:l.source,code:l.code,at:l.at,category:l.category,note:l.note,version:1,author:"Імпорт",deleted:false});added++}if(l.status==="update"){var old=state.records.find(function(r){return r.id===l.old});if(old){old.at=l.at;old.category=l.category;old.note=l.note;old.version++;updated++}}});state.imports.unshift({name:st.name,kind:st.ext.toUpperCase(),status:"done",message:"Додано "+added+" · оновлено "+updated+" · збігів "+st.lines.filter(function(l){return l.status==="same"}).length,date:now(),hash:st.hash});audit("Підтверджено імпорт",st.name+": +"+added+", оновлено "+updated);state.staged=null;render();toast("Пакет застосовано у демонстраційній сесії")}
 function createReport(){var items=reportRows().map(function(r){return Object.assign({},r)});state.report={day:state.day,items:items,version:state.reports.length+1,date:now()};state.reports.push(state.report);audit("Сформовано звіт","Версія "+state.report.version+" · "+state.day+" · "+items.length+" записів");render();toast("Створено версію звіту "+state.report.version)}
@@ -168,7 +278,11 @@ function buildDocx(lines){var body="",last="";function cell(text,merge){return '
 function exampleRows(){return[{source:"Джерело А",code:"T003",at:"2026-10-13T10:05:00",category:"Облік",note:"Новий тестовий запис"},{source:"Джерело Б",code:"T003",at:"2026-10-13T11:25:00",category:"Архів",note:"Пакет 5"}]}
 function printReport(){if(!state.report)return;var r=state.report;document.getElementById("print-area").innerHTML='<h1>ANALISE · Демонстраційний звіт №'+r.version+'</h1><p>Період: '+esc(prevDay(r.day))+' 15:00 — '+esc(r.day)+' 15:00, Europe/Kyiv<br>Сформовано: '+esc(r.date)+'</p>'+recordTable(r.items,false)+'<p>Усього записів: '+r.items.length+' · Не є службовим документом</p>';window.print()}
 node.addEventListener("click",async function(e){var b=e.target.closest("[data-action]");if(!b)return;var act=b.dataset.action;try{
-if(act==="go-import")nav("imports");if(act==="go-records")nav("records");if(act==="add-record")recordModal(null);if(act==="edit")recordModal(state.records.find(function(x){return x.id===b.dataset.id}));if(act==="delete")deleteRecord(b.dataset.id);if(act==="select-file")document.getElementById("file-input").click();if(act==="cancel-import"){state.staged=null;render()}if(act==="confirm-import")confirmImport();if(act==="create-report")createReport();if(act==="add-ref")refModal("source","");if(act==="edit-ref")refModal(b.dataset.kind,b.dataset.value);if(act==="archive-ref")archiveRef(b.dataset.kind,b.dataset.value);if(act==="role-duty"||act==="role-admin"){state.role=act==="role-duty"?"duty":"admin";render()}if(act==="reset-demo"){if(confirm("Скинути всі тестові зміни?"))location.reload()}
+if(act==="go-import")nav("imports");if(act==="go-records")nav("records");if(act==="add-record")recordModal(null);if(act==="edit")recordModal(state.records.find(function(x){return x.id===b.dataset.id}));if(act==="delete")deleteRecord(b.dataset.id);if(act==="structured-confirm")confirmStructured();
+if(act==="structured-prev"&&state.staged?.structured){state.staged.page--;render()}
+if(act==="structured-next"&&state.staged?.structured){state.staged.page++;render()}
+if(act==="structured-original"&&state.staged?.structured){state.staged.showOriginal=!state.staged.showOriginal;render()}
+if(act==="select-file")document.getElementById("file-input").click();if(act==="cancel-import"){state.staged=null;render()}if(act==="confirm-import")confirmImport();if(act==="create-report")createReport();if(act==="add-ref")refModal("source","");if(act==="edit-ref")refModal(b.dataset.kind,b.dataset.value);if(act==="archive-ref")archiveRef(b.dataset.kind,b.dataset.value);if(act==="role-duty"||act==="role-admin"){state.role=act==="role-duty"?"duty":"admin";render()}if(act==="reset-demo"){if(confirm("Скинути всі тестові зміни?"))location.reload()}
 if(act==="sample-xlsx"){download(buildXlsx(exampleRows()),"analise_test.xlsx");toast("Створено навчальний XLSX")}if(act==="sample-docx"){download(buildDocx(exampleRows()),"analise_test.docx");toast("Створено навчальний DOCX")}
 if(act==="export-xlsx"&&state.report)download(buildXlsx(state.report.items),"analise_report_v"+state.report.version+".xlsx");
 if(act==="export-docx"&&state.report)download(buildDocx(state.report.items),"analise_report_v"+state.report.version+".docx");
@@ -176,7 +290,13 @@ if(act==="print-report")printReport()
 }catch(err){toast("Помилка: "+err.message)}});
 node.addEventListener("change",async function(e){var t=e.target;if(t.id==="file-input"){var f=t.files&&t.files[0];if(!f)return;try{await importFile(f)}catch(err){toast("Не вдалося розібрати: "+err.message)}}
 if(t.id==="filter-src"){state.srcfilter=t.value;render()}if(t.id==="filter-cat"){state.catfilter=t.value;render()}if(t.id==="report-day"){state.day=t.value;render()}});
-node.addEventListener("input",function(e){if(e.target.id==="filter-query"){state.search=e.target.value;var data=rows().filter(function(r){var q=state.search.toLowerCase();return (!q||[r.code,r.note,r.source,r.category].join(" ").toLowerCase().includes(q))&&(state.srcfilter==="all"||r.source===state.srcfilter)&&(state.catfilter==="all"||r.category===state.catfilter)});document.getElementById("record-results").innerHTML=recordTable(data,true)}});
+node.addEventListener("input",function(e){
+if(e.target.id==="structured-search"&&state.staged?.structured){
+  state.staged.filter=e.target.value;state.staged.page=0;
+  const area=document.getElementById("structured-preview-table");
+  if(area)area.innerHTML=structuredTable(state.staged);
+}
+if(e.target.id==="filter-query"){state.search=e.target.value;var data=rows().filter(function(r){var q=state.search.toLowerCase();return (!q||[r.code,r.note,r.source,r.category].join(" ").toLowerCase().includes(q))&&(state.srcfilter==="all"||r.source===state.srcfilter)&&(state.catfilter==="all"||r.category===state.catfilter)});document.getElementById("record-results").innerHTML=recordTable(data,true)}});
 document.getElementById("modal-root").addEventListener("click",function(e){var b=e.target.closest("[data-action]");if(!b){if(e.target.id==="overlay")closeModal();return}var act=b.dataset.action;if(act==="close-modal")closeModal();if(act==="save-record")saveRecord();if(act==="save-ref")saveRef(b)});
 node.addEventListener("dragover",function(e){if(e.target.closest("#drop")){e.preventDefault();e.target.closest("#drop").classList.add("over")}});
 node.addEventListener("dragleave",function(e){if(e.target.closest("#drop"))e.target.closest("#drop").classList.remove("over")});
