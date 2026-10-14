@@ -1,5 +1,6 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { APP_HTML, APP_CSS, APP_JS } from "./app-assets.js";
+import { IMPORT_JS, IMPORT_CSS } from "./import-demo.js";
 
 const MAX_JSON_BYTES = 65_536;
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
@@ -268,10 +269,12 @@ export default {
       if(auth.err)return auth.err;
       const user=auth.user;
       // Private working interface: HTML, CSS and JS are all Access-protected.
-      if (url.pathname === "/api/app" || url.pathname === "/api/app.css" || url.pathname === "/api/app.js") {
+      if (["/api/app","/api/app.css","/api/app.js","/api/import.js","/api/import.css"].includes(url.pathname)) {
         if (req.method !== "GET") return error(405, "Дозволено лише GET");
         if (url.pathname === "/api/app") return appAsset(APP_HTML, "text/html; charset=utf-8");
         if (url.pathname === "/api/app.css") return appAsset(APP_CSS, "text/css; charset=utf-8");
+        if(url.pathname==="/api/import.js")return appAsset(IMPORT_JS,"text/javascript; charset=utf-8");
+        if(url.pathname==="/api/import.css")return appAsset(IMPORT_CSS,"text/css; charset=utf-8");
         return appAsset(APP_JS, "text/javascript; charset=utf-8");
       }
       if (url.pathname === "/api/test" || url.pathname === "/api/test.js" || url.pathname === "/api/test.css") {
