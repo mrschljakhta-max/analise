@@ -1,5 +1,5 @@
 -- ANALISE generic administrative records; no operational military schema.
-PRAGMA foreign_keys = ON;
+-- D1 enforces foreign keys automatically; no foreign_keys PRAGMA is needed.
 
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY NOT NULL,
