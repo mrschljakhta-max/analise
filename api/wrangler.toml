@@ -1,0 +1,21 @@
+name = "analise-api"
+main = "src/index.js"
+compatibility_date = "2026-10-14"
+
+# Worker's public hostname MUST be covered by a Cloudflare Access application.
+# Missing Access settings cause 503/403, never unauthenticated access.
+[vars]
+ACCESS_TEAM_DOMAIN = ""
+ACCESS_AUD = ""
+ADMIN_EMAIL = ""
+FILE_UPLOAD_ENABLED = "false"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "analise-db"
+database_id = "REPLACE_WITH_D1_UUID"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "DOCUMENTS"
+bucket_name = "analise-private-documents"
