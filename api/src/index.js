@@ -224,6 +224,22 @@ async function filesApi(req, env, user, seg) {
   return error(404,"Невідомий маршрут");
 }
 
+
+// Isolated same-origin diagnostics. Access JWT is verified before these routes.
+const TEST_HTML = "<!doctype html>\n<html lang=\"uk\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n<meta name=\"robots\" content=\"noindex,nofollow\">\n<title>ANALISE — перевірка API</title>\n<link rel=\"stylesheet\" href=\"/api/test.css\">\n<script src=\"/api/test.js\" defer></script>\n</head>\n<body>\n<main class=\"shell\">\n<p class=\"eyebrow\">ANALISE / ACCESS-PROTECTED DIAGNOSTICS</p>\n<h1>Тестування бази D1</h1>\n<p class=\"intro\">Це окремий діагностичний екран для адміністратора. Записи — тільки штучні. Він не є основним інтерфейсом і не дозволяє завантажувати документи.</p>\n<div class=\"grid\">\n<article><span>Авторизація</span><strong id=\"identity\">Перевіряємо…</strong></article>\n<article><span>Підключення</span><strong id=\"health\">Перевіряємо…</strong></article>\n<article><span>Записів у вибірці</span><strong id=\"count\">—</strong></article>\n</div>\n<div class=\"actions\">\n<button id=\"read\" type=\"button\">Оновити журнал</button>\n<button id=\"create\" type=\"button\" class=\"primary\">+ Створити тестовий запис</button>\n</div>\n<p id=\"notice\" role=\"status\" aria-live=\"polite\">Підключення до захищеного API…</p>\n<h2>Результат запиту</h2>\n<pre id=\"result\">Очікуємо відповідь…</pre>\n<p class=\"foot\">Завантаження документів залишається вимкненим. Після створення запису можна оновити сторінку: запис зберігається у D1.</p>\n</main>\n</body>\n</html>";
+const TEST_JS = "'use strict';\nconst $ = (id) => document.getElementById(id);\nconst show = (data) => { $('result').textContent = JSON.stringify(data, null, 2); };\nasync function request(url, options) {\n  const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store', ...options });\n  const body = await response.json();\n  if (!response.ok) throw new Error('HTTP ' + response.status + ': ' + (body.error || JSON.stringify(body)));\n  return body;\n}\nasync function load() {\n  $('notice').textContent = 'Читаємо журнал…';\n  try {\n    const data = await request('/api/records');\n    $('count').textContent = String(data.items.length);\n    $('notice').textContent = 'Завантажено ' + data.items.length + ' тестових записів (у поточній вибірці).';\n    show(data);\n  } catch (error) {\n    $('notice').textContent = 'Помилка читання: ' + error.message;\n    show({ error: error.message });\n  }\n}\nasync function create() {\n  $('create').disabled = true;\n  $('notice').textContent = 'Створюємо синтетичний запис…';\n  try {\n    const data = await request('/api/records', {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json' },\n      body: JSON.stringify({\n        source_name: 'ANALISE TEST UI',\n        external_code: 'DEMO-' + Date.now() + '-' + crypto.randomUUID().slice(0, 6),\n        category: 'Навчальна подія',\n        note: 'Штучний запис, створений захищеною тестовою сторінкою',\n        event_at: new Date().toISOString()\n      })\n    });\n    $('notice').textContent = 'Успіх: HTTP 201. Запис збережено у D1.';\n    show(data);\n    await load();\n  } catch (error) {\n    $('notice').textContent = 'Помилка запису: ' + error.message;\n    show({ error: error.message });\n  } finally {\n    $('create').disabled = false;\n  }\n}\nasync function init() {\n  try {\n    const [me, health] = await Promise.all([request('/api/me'), request('/api/health')]);\n    $('identity').textContent = me.role === 'admin' ? 'Адміністратор' : 'Невідома роль';\n    $('health').textContent = health.ok && health.database ? 'D1 доступна' : 'Перевірити';\n  } catch (error) {\n    $('notice').textContent = 'Авторизація або підключення: ' + error.message;\n  }\n  await load();\n}\n$('read').addEventListener('click', load);\n$('create').addEventListener('click', create);\ninit();";
+const TEST_CSS = ":root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#071524;color:#e7f3fd}\n*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 15% 0%,#163b46 0,transparent 50%),#071524}\n.shell{max-width:980px;margin:auto;padding:60px 24px}.eyebrow{color:#64e1ce;font-size:12px;font-weight:800;letter-spacing:.13em}\nh1{font-size:clamp(27px,5vw,43px);margin:8px 0}h2{margin-top:34px;font-size:18px}.intro,.foot{color:#b8cce1;line-height:1.6;max-width:760px}\n.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:30px 0}\narticle{background:#11253a;border:1px solid #24475a;border-radius:14px;padding:18px;min-height:110px;display:flex;flex-direction:column;gap:20px}\narticle span{color:#9cb9ca;font-size:13px}article strong{color:#6fe9d2;font-size:18px}\n.actions{display:flex;gap:12px;flex-wrap:wrap}button{border:1px solid #355f72;background:#153348;color:#e7f3fd;padding:13px 20px;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer}\nbutton.primary{background:#60e1cd;border-color:#60e1cd;color:#092735}button:disabled{opacity:.55;cursor:wait}\n#notice{padding:13px 16px;border:1px solid #355f72;border-radius:10px;margin-top:24px;min-height:48px;color:#ccedec}\npre{background:#050f1a;border:1px solid #24475a;border-radius:14px;padding:20px;max-height:360px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;color:#b6dcfe;line-height:1.55}\n@media(max-width:630px){.shell{padding:32px 16px}.grid{grid-template-columns:1fr}article{min-height:80px;gap:8px}.actions{flex-direction:column}button{width:100%}}";
+const TEST_CSP = "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+function testAsset(body, contentType, csp) {
+  return new Response(body, { headers: {
+    "content-type": contentType,
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "no-referrer",
+    "content-security-policy": csp
+  }});
+}
+
 export default {
   async fetch(req, env) {
     const url=new URL(req.url),seg=url.pathname.split("/").filter(Boolean);
@@ -237,6 +253,13 @@ export default {
       const auth=await identity(req,env);
       if(auth.err)return auth.err;
       const user=auth.user;
+      if (url.pathname === "/api/test" || url.pathname === "/api/test.js" || url.pathname === "/api/test.css") {
+        if (req.method !== "GET") return error(405, "Дозволено лише GET");
+        if (user.role !== "admin") return error(403, "Тестування доступне лише адміністратору");
+        if (url.pathname === "/api/test") return testAsset(TEST_HTML, "text/html; charset=utf-8", TEST_CSP);
+        if (url.pathname === "/api/test.js") return testAsset(TEST_JS, "text/javascript; charset=utf-8", "default-src 'none'");
+        return testAsset(TEST_CSS, "text/css; charset=utf-8", "default-src 'none'");
+      }
       if(url.pathname==="/api/me"&&req.method==="GET")return reply({id:user.id,email:user.email,role:user.role});
       if(url.pathname==="/api/health"&&req.method==="GET"){
         await env.DB.prepare("SELECT 1 AS ok").first();
