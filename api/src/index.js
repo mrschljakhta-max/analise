@@ -1,4 +1,5 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
+import { APP_HTML, APP_CSS, APP_JS } from "./app-assets.js";
 
 const MAX_JSON_BYTES = 65_536;
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
@@ -240,6 +241,19 @@ function testAsset(body, contentType, csp) {
   }});
 }
 
+
+const APP_CSP = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+function appAsset(body, contentType) {
+  return new Response(body, { status:200, headers:{
+    "content-type":contentType,
+    "cache-control":"no-store, private",
+    "x-content-type-options":"nosniff",
+    "referrer-policy":"no-referrer",
+    "x-frame-options":"DENY",
+    "content-security-policy":APP_CSP
+  }});
+}
+
 export default {
   async fetch(req, env) {
     const url=new URL(req.url),seg=url.pathname.split("/").filter(Boolean);
@@ -253,6 +267,13 @@ export default {
       const auth=await identity(req,env);
       if(auth.err)return auth.err;
       const user=auth.user;
+      // Private working interface: HTML, CSS and JS are all Access-protected.
+      if (url.pathname === "/api/app" || url.pathname === "/api/app.css" || url.pathname === "/api/app.js") {
+        if (req.method !== "GET") return error(405, "Дозволено лише GET");
+        if (url.pathname === "/api/app") return appAsset(APP_HTML, "text/html; charset=utf-8");
+        if (url.pathname === "/api/app.css") return appAsset(APP_CSS, "text/css; charset=utf-8");
+        return appAsset(APP_JS, "text/javascript; charset=utf-8");
+      }
       if (url.pathname === "/api/test" || url.pathname === "/api/test.js" || url.pathname === "/api/test.css") {
         if (req.method !== "GET") return error(405, "Дозволено лише GET");
         if (user.role !== "admin") return error(403, "Тестування доступне лише адміністратору");
