@@ -1,30 +1,30 @@
 # ANALISE — підключення Cloudflare через браузер
 
-**Стан:** серверний код для D1/R2 уже є в \`api/\`, але ресурси у вашому Cloudflare-акаунті **ще не створено**. Поточний публічний сайт GitHub Pages залишається виключно демонстраційним.
+**Стан:** серверний код для D1/R2 уже є в `api/`, але ресурси у вашому Cloudflare-акаунті **ще не створено**. Поточний публічний сайт GitHub Pages залишається виключно демонстраційним.
 
 ## Безпечний порядок
 
 1. Відкрийте [Cloudflare Dashboard](https://dash.cloudflare.com/) у власному акаунті.
-2. У меню **Workers & Pages → D1 / D1 SQL Database** створіть базу **\`analise-db\`**. Скопіюйте лише її **Database ID** (UUID). Це не пароль.
-3. У **R2 Object Storage** створіть приватний bucket **\`analise-private-documents\`**. Не вмикайте публічний URL, не прив'язуйте публічний домен R2.
-4. У GitHub відкрийте [\`api/wrangler.toml\`](https://github.com/mrschljakhta-max/analise/blob/main/api/wrangler.toml) та замініть \`REPLACE_WITH_D1_UUID\` на фактичний Database ID (цей ідентифікатор не є обліковим ключем).
+2. У меню **Workers & Pages → D1 / D1 SQL Database** створіть базу **`analise-db`**. Скопіюйте лише її **Database ID** (UUID). Це не пароль.
+3. У **R2 Object Storage** створіть приватний bucket **`analise-private-documents`**. Не вмикайте публічний URL, не прив'язуйте публічний домен R2.
+4. У GitHub відкрийте [`api/wrangler.toml`](https://github.com/mrschljakhta-max/analise/blob/main/api/wrangler.toml) та замініть `REPLACE_WITH_D1_UUID` на фактичний Database ID (цей ідентифікатор не є обліковим ключем).
 5. У **Cloudflare Zero Trust → Access → Applications** налаштуйте захищений застосунок для майбутнього hostname Worker. Дозвольте **лише** погоджені робочі облікові записи та ввімкніть MFA. Доступ до API має бути заблокований до налаштування політики.
-6. У **Workers & Pages** створіть Worker **\`analise-api\`** через **Import a repository** / підключення GitHub: репозиторій **\`mrschljakhta-max/analise\`**, гілка **\`main\`**, коренева папка проєкту **\`api\`**. Якщо Cloudflare запитує команду публікації, використовуйте **\`npx wrangler deploy\`**; для встановлення залежностей **\`npm install\`**.
+6. У **Workers & Pages** створіть Worker **`analise-api`** через **Import a repository** / підключення GitHub: репозиторій **`mrschljakhta-max/analise`**, гілка **`main`**, коренева папка проєкту **`api`**. Якщо Cloudflare запитує команду публікації, використовуйте **`npx wrangler deploy`**; для встановлення залежностей **`npm install`**.
 7. Для Worker через **Settings → Variables and Secrets** додайте **секрети**, не записуючи їх до GitHub:
-   - \`ACCESS_TEAM_DOMAIN\` — точна адреса вашого team domain, наприклад \`https://example.cloudflareaccess.com\`;
-   - \`ACCESS_AUD\` — **Application Audience (AUD)** з налаштувань Access-застосунку;
-   - \`ADMIN_EMAIL\` — email першого адміністратора, який уже дозволений у Access.
+   - `ACCESS_TEAM_DOMAIN` — точна адреса вашого team domain, наприклад `https://example.cloudflareaccess.com`;
+   - `ACCESS_AUD` — **Application Audience (AUD)** з налаштувань Access-застосунку;
+   - `ADMIN_EMAIL` — email першого адміністратора, який уже дозволений у Access.
    Не передавайте їх значення разом із паролями або токенами в чат.
-8. Застосуйте SQL з [\`api/migrations/0001_initial.sql\`](https://github.com/mrschljakhta-max/analise/blob/main/api/migrations/0001_initial.sql) до **\`analise-db\`** у D1 SQL Console (або через \`npx wrangler d1 migrations apply analise-db --remote\` у довіреному середовищі). Не запускайте одну міграцію двічі з різних інструментів без перевірки її стану.
-9. Перевірте, що запити до Worker **без** Access відхиляються, а у дозволеного адміністратора \`/api/me\` повертає роль **\`admin\`**. Перевірте відмову для сторонніх облікових записів і реальний захист **усіх** доменів API, включно з \`workers.dev\`, якщо він доступний.
-10. **Не вмикайте завантаження файлів** одразу: у \`wrangler.toml\` навмисно стоїть \`FILE_UPLOAD_ENABLED = "false"\`. Перед зміною перевірте політики зберігання, резервування, журналювання, схему даних, сканування файлів і відновлення на тестових документах.
+8. Застосуйте SQL з [`api/migrations/0001_initial.sql`](https://github.com/mrschljakhta-max/analise/blob/main/api/migrations/0001_initial.sql) до **`analise-db`** у D1 SQL Console (або через `npx wrangler d1 migrations apply analise-db --remote` у довіреному середовищі). Не запускайте одну міграцію двічі з різних інструментів без перевірки її стану.
+9. Перевірте, що запити до Worker **без** Access відхиляються, а у дозволеного адміністратора `/api/me` повертає роль **`admin`**. Перевірте відмову для сторонніх облікових записів і реальний захист **усіх** доменів API, включно з `workers.dev`, якщо він доступний.
+10. **Не вмикайте завантаження файлів** одразу: у `wrangler.toml` навмисно стоїть `FILE_UPLOAD_ENABLED = "false"`. Перед зміною перевірте політики зберігання, резервування, журналювання, схему даних, сканування файлів і відновлення на тестових документах.
 
 ## Що саме підготовлено
 
 - Модель даних D1: користувачі, довідники, записи, аудит, метадані файлів, партії імпорту та звіти.
 - API на Cloudflare Workers із перевіркою JWT Cloudflare Access.
 - Метадані й обмежений приватний прийом файлів у R2 (вимкнено до готовності середовища).
-- Підтримка двох ролей: \`duty\` та \`admin\`.
+- Підтримка двох ролей: `duty` та `admin`.
 - Демонстраційні загальні записи без координат, бойових задач чи характеристик засобів.
 
 ## Обмеження цього етапу
