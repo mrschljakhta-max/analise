@@ -10,7 +10,7 @@ FILE_UPLOAD_ENABLED = "false"
 [[d1_databases]]
 binding = "DB"
 database_name = "analise-db"
-database_id = "REPLACE_WITH_D1_UUID"
+database_id = "1cbcecba-c8c6-40e4-a6d9-cc2b122c63e0"
 migrations_dir = "migrations"
 
 [[r2_buckets]]
