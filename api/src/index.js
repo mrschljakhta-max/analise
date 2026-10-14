@@ -7,7 +7,7 @@ const JSON_HEADERS = {
   "cache-control": "no-store",
   "x-content-type-options": "nosniff",
   "referrer-policy": "no-referrer",
-  "content-security-policy": "default-src 'none'",
+  "content-security-policy": "default-src 'none'; connect-src 'self'",
 };
 
 const now = () => new Date().toISOString();
