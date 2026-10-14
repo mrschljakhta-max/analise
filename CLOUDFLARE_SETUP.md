@@ -2,6 +2,18 @@
 
 **Стан:** серверний код для D1/R2 уже є в `api/`, але ресурси у вашому Cloudflare-акаунті **ще не створено**. Поточний публічний сайт GitHub Pages залишається виключно демонстраційним.
 
+## Міграції D1 через GitHub Actions (без локального встановлення)
+
+В репозиторії доступний ручний workflow [ANALISE D1 schema migration](https://github.com/mrschljakhta-max/analise/actions/workflows/migrate-d1.yml).
+
+1. У власному Cloudflare-акаунті відкрийте **My Profile → API Tokens → Create Token → Create Custom Token**. Для цього токена потрібен дозвіл **Account → D1 → Edit**, звужений до потрібного акаунта. Задайте строк дії та захищайте токен, як пароль.
+2. У GitHub → `analise` → **Settings → Secrets and variables → Actions → New repository secret** створіть `CLOUDFLARE_API_TOKEN` і введіть значення створеного токена.
+3. Аналогічно створіть `CLOUDFLARE_ACCOUNT_ID` із ID акаунта Cloudflare (видно у URL/панелі, це не секрет доступу).
+4. GitHub → **Actions → ANALISE D1 schema migration → Run workflow → main → Run workflow**.
+5. Дочекайтеся зеленого статусу. Зайдіть у Cloudflare D1 Console та виконайте `/tables`. Має бути 7 прикладних таблиць, а також службова `d1_migrations`.
+
+**Не вставляйте API-токен у чат, скриншот або файл репозиторію.** Не запускайте SQL вручну до цієї міграції: інакше історія міграцій може розійтися з фактичною схемою. Після налаштування відкличте/ротуйтесь токен, якщо він більше не потрібен, та регулярно перевіряйте доступи до репозиторію.
+
 ## Безпечний порядок
 
 1. Відкрийте [Cloudflare Dashboard](https://dash.cloudflare.com/) у власному акаунті.
