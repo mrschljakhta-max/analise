@@ -1,7 +1,7 @@
 /* ANALISE browser-only import: local standard XLSX & DOCX readers.
  * No network requests. Never submit real or sensitive documents to the public demo.
  */
-root.ANALISE_TEMPLATE_IMPORT=(function() {
+window.ANALISE_TEMPLATE_IMPORT=(function() {
 "use strict";
 const MAX_FILE=8*1024*1024,MAX_XML=15*1024*1024,MAX_ROWS=20000,PAGE=25;
 const SHEET_HEADERS=[null,'Дата запиту','Час запиту','Тип дії','Від кого','Вид прикриття',"Об'єкт прикриття","Підрозділ об'єкта",'Назва н.п.','Координати (MGRS)','Час початку','Час завершення','Кого повідомили','Станція','Частоти','Підрозділ','Екіпаж','Тип засобу','Пілот','Час початку 2','Час завершення 2','Частоти (звільнити)','Населений пункт','Координати','Маршрут','Контакт','Черговий','Нагадування','Lat','Lon'];
@@ -173,7 +173,7 @@ function splitDateAndTime(raw){
   const match=original.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s+(\d{1,2})[./](\d{1,2})[./](\d{4})$/)
     || original.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
   if(!match)return {original,date:"",time:"",valid:false};
-  const timeFirst=original.includes(":")&&original.indexOf(":")<original.indexOf(".");
+  const timeFirst=/^\d{1,2}:\d{2}/.test(original);
   const hour=Number(timeFirst?match[1]:match[4]), minute=Number(timeFirst?match[2]:match[5]);
   const day=Number(timeFirst?match[4]:match[1]),month=Number(timeFirst?match[5]:match[2]),year=Number(timeFirst?match[6]:match[3]);
   const seconds=Number(timeFirst?(match[3]||0):(match[6]||0));
