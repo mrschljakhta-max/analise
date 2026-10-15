@@ -1,0 +1,55 @@
+name: Publish eastern settlements Excel
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/build-settlements-xlsx.cjs'
+      - '.github/workflows/publish-settlements.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build-catalog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Download pinned KATOTTG and OpenStreetMap source
+        run: |
+          curl --fail --location --retry 3 \
+            "https://raw.githubusercontent.com/alexbabintsev/ua-geo/d37d5e967e3bb45255d180ea740e5a6ca90e00cc/data/out/katottg.csv" \
+            -o "$RUNNER_TEMP/katottg-source.csv"
+          test "$(wc -c < "$RUNNER_TEMP/katottg-source.csv")" -gt 5000000
+      - name: Compile workbook with source verification
+        run: |
+          node scripts/build-settlements-xlsx.cjs \
+            "$RUNNER_TEMP/katottg-source.csv" \
+            "downloads/ASTRA_Kharkiv_Donetsk_Luhansk_settlements.xlsx"
+      - name: Validate XLSX archive and record counts
+        run: |
+          python - <<'PY'
+          import zipfile, xml.etree.ElementTree as ET
+          p="downloads/ASTRA_Kharkiv_Donetsk_Luhansk_settlements.xlsx"
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None, "Corrupt archive"
+              xml=z.read("xl/worksheets/sheet1.xml")
+              root=ET.fromstring(xml)
+              ns="{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+              rows=root.findall(".//"+ns+"sheetData/"+ns+"row")
+              assert len(rows)==3976, len(rows)
+              assert len(root.findall(".//"+ns+"sheetData/"+ns+"row[1]/"+ns+"c"))==8
+          print("Workbook valid; 3975 settlements, 8 headers")
+          PY
+      - name: Publish download on main branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add downloads/ASTRA_Kharkiv_Donetsk_Luhansk_settlements.xlsx
+          if ! git diff --cached --quiet; then
+            git commit -m "data: publish Kharkiv, Donetsk, Luhansk settlement catalog"
+            git push origin HEAD:main
+          fi
