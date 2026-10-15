@@ -93,3 +93,32 @@ test("menu integration and click handler exist in the existing page",()=>{
  assert.match(html,/purgatoryAction\(b\)/);
  assert.match(html,/ASTRA_PURGATORY\.view/);
 });
+
+test("visible suggestion offers explicit selection without automatic approval",()=>{
+ const state=pg.seed();
+ const html=pg.view(state);
+ assert.match(html,/Схожі назви з довідника/);
+ assert.match(html,/data-action="pg-choose"/);
+ assert.match(html,/data-pg-target="s1"/);
+ assert.match(html,/Вибір підказки не підтверджує/);
+ assert.equal(state.issues.find(x=>x.id==="i1").status,"pending");
+});
+
+test("station context control is initially hidden unless settlement is selected",()=>{
+ const html=pg.view(pg.seed());
+ assert.match(html,/class="formgroup hidden" id="pg-station-context"/);
+ assert.match(html,/id="pg-station" disabled/);
+ const main=fs.readFileSync(path.join(__dirname,"../index.html"),"utf8");
+ assert.match(main,/t\.id==="pg-kind"/);
+ assert.match(main,/t\.value==="settlement"/);
+ assert.match(main,/context\.classList\.toggle\("hidden",!show\)/);
+});
+
+test("review animations are optional and reduced-motion friendly",()=>{
+ const main=fs.readFileSync(path.join(__dirname,"../index.html"),"utf8");
+ assert.match(main,/\.pg-actions\{display:grid/);
+ assert.match(main,/\.pg-card\.pg-complete/);
+ assert.match(main,/prefers-reduced-motion:reduce/);
+ assert.match(main,/function pgFinish\(card,message\)/);
+ assert.match(main,/pgFinish\(card,"Підтверджено/);
+});
