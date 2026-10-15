@@ -18,8 +18,8 @@ export function validate(schema, data){
    if(typeof v==="string"&&v.length>500)throw Error("Завелике значення: "+f.key);
  }
  if(schema.fields.some(f=>f.key==="mgrs")){
-   const mgrs=String(data.mgrs??"").toUpperCase().replace(/\\s+/g,"");
-   if(mgrs && !/^(?:[1-9]|[1-5][0-9]|60)[C-HJ-NP-X][A-HJ-NP-Z]{2}(?:\\d{2}){0,5}$/.test(mgrs))
+   const mgrs=String(data.mgrs??"").toUpperCase().replace(/\s+/g,"");
+   if(mgrs && !/^(?:[1-9]|[1-5][0-9]|60)[C-HJ-NP-X][A-HJ-NP-Z]{2}(?:\d{2}){0,5}$/.test(mgrs))
     throw Error("Некоректний формат MGRS");
  }
  if(schema.fields.some(f=>f.key==="lat") && schema.fields.some(f=>f.key==="lon")){
