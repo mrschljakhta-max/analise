@@ -75,6 +75,11 @@ table{border-collapse:collapse;width:100%;font-size:12px;text-align:left}th{padd
 .pg-records{display:grid;gap:8px}.pg-records>div{padding:10px 12px;border-bottom:1px solid #294254;font-size:12px;line-height:1.5;color:#b9d2df}
 @media(max-width:1080px){.pg-grid{grid-template-columns:1fr}.pg-add-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.pg-fields,.pg-add-grid,.pg-actions{grid-template-columns:1fr}.pg-card{padding:13px}.pg-recommend-heading{display:block}.pg-actions [data-action="pg-confirm"]{grid-column:1}}
+.np-table{max-width:100%;max-height:440px;overflow:auto}
+.np-table table{min-width:1200px}
+.np-table th{position:sticky;top:0;background:#17364b;z-index:1;white-space:nowrap}
+.np-table td{white-space:normal;min-width:115px;max-width:255px;overflow-wrap:anywhere}
+.np-table td:nth-child(6){min-width:165px}
 </style>
 </head>
 <body>
@@ -107,6 +112,8 @@ table{border-collapse:collapse;width:100%;font-size:12px;text-align:left}th{padd
 <script src="./template-import.js?v=20261014-1"></script>
 <script src="./report-versions.js?v=20261015-2"></script>
 <script src="./purgatory-demo.js?v=20261015-2"></script>
+<script src="./vendor/mgrs.min.js?v=20261015-1"></script>
+<script src="./settlements-exchange.js?v=20261015-1"></script>
 <script>
 "use strict";
 (function(){
@@ -117,6 +124,7 @@ var state={view:"overview",role:"duty",records:[
 {id:"R4",source:"Джерело Б",code:"T002",at:"2026-10-13T14:59:59",category:"Облік",note:"Пакет 4",version:1,author:"Демо",deleted:false}
 ],refs:{source:["Джерело А","Джерело Б"],category:["Архів","Облік"]},imports:[],staged:null,importError:"",report:null,reports:[],audit:[],search:"",srcfilter:"all",catfilter:"all",day:window.ASTRA_REPORT_VERSIONS.todayKyiv(),reportDateEdited:false};
 state.purgatory=window.ASTRA_PURGATORY.seed();
+state.settlements=[];state.settlementStaged=null;
 var views={overview:"Огляд",imports:"Завантаження",records:"Журнали",purgatory:"Чистилище",references:"Довідники",reports:"Звіти та експорт",audit:"Історія змін",admin:"Налаштування",maps:"Карти"};
 var node=document.getElementById("view");
 function esc(s){return String(s===undefined||s===null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;")}
@@ -219,6 +227,7 @@ return '<div class="panel"><div class="panelhead"><h2>Попередній пе�
 '<div class="tablewrap"><table><thead><tr><th>Рядок</th><th>Джерело</th><th>Код</th><th>Значення</th><th>Перевірка</th></tr></thead><tbody>'+st.lines.map(function(r){return '<tr><td class="mono">'+esc(r.line)+'</td><td>'+esc(r.source)+'</td><td class="mono">'+esc(r.code)+'</td><td>'+esc(r.note)+'<div class="hintline">'+esc(r.at)+'</div></td><td>'+tag(r.status)+(r.issue?'<div class="hintline badtext">'+esc(r.issue)+'</div>':"")+'</td></tr>'}).join("")+'</tbody></table></div><div class="actions" style="margin-top:20px">'+btn("Підтвердити пакет","primary",block?'disabled': 'data-action="confirm-import"')+btn("Скасувати","quiet",'data-action="cancel-import"')+'</div><p class="footnote">Підтвердження у цій версії змінює лише дані відкритої вкладки. Постійне зберігання потребує захищеного API.</p></div>'}
 function refsView(){
 return header("ДОВІДКОВА СИСТЕМА","Довідники","Єдині назви та категорії. Демонстраційний режим показує принцип редагування й архівування без серверного зберігання.",btn("＋ Додати елемент","primary",'data-action="add-ref"'))+
+window.ASTRA_SETTLEMENTS.view(state.settlements,state.settlementStaged)+
 '<div class="refgrid">'+[{key:"source",name:"Джерела даних",desc:"Сутності, що позначають блоки у вхідних документах.",ico:"▤"},{key:"category",name:"Категорії",desc:"Значення, які використовує погоджений тестовий профіль.",ico:"▦"},{key:"later",name:"Інші довідники",desc:"Ієрархія, посади, контакти та об’єкти — після погодження профілів.",ico:"⊞"}].map(function(g){return '<div class="refcard"><div class="circle">'+g.ico+'</div><h3>'+g.name+'</h3><p>'+g.desc+'</p><div class="count">'+(g.key==="later"?"На наступному етапі":state.refs[g.key].length+" значення")+'</div></div>'}).join("")+'</div>'+
 '<div class="grid2" style="margin-top:20px">'+["source","category"].map(function(k){return '<div class="panel"><div class="panelhead"><h2>'+(k==="source"?"Джерела":"Категорії")+'</h2><span class="tag">'+state.refs[k].length+'</span></div>'+state.refs[k].map(function(s){return '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 3px;border-bottom:1px solid #294052;gap:8px"><span>'+esc(s)+'</span><div class="rowactions">'+btn("Змінити","tiny",'data-action="edit-ref" data-kind="'+k+'" data-value="'+esc(s)+'"')+btn("Архів","tiny",'data-action="archive-ref" data-kind="'+k+'" data-value="'+esc(s)+'"')+'</div></div>'}).join("")+'</div>'}).join("")+'</div>'}
 function prevDay(d){var a=d.split("-").map(Number),t=new Date(Date.UTC(a[0],a[1]-1,a[2]));t.setUTCDate(t.getUTCDate()-1);return t.toISOString().slice(0,10)}
@@ -394,7 +403,7 @@ function buildDocx(lines){var body="",last="";function cell(text,merge){return '
 function exampleRows(){return[{source:"Джерело А",code:"T003",at:"2026-10-13T10:05:00",category:"Облік",note:"Новий тестовий запис"},{source:"Джерело Б",code:"T003",at:"2026-10-13T11:25:00",category:"Архів",note:"Пакет 5"}]}
 function printReport(){if(!state.report)return;var r=state.report;document.getElementById("print-area").innerHTML='<h1>ANALISE · Демонстраційний звіт №'+r.version+'</h1><p>Період: '+esc(prevDay(r.day))+' 15:00 — '+esc(r.day)+' 15:00, Europe/Kyiv<br>Сформовано: '+esc(r.date)+'</p>'+recordTable(r.items,false)+'<p>Усього записів: '+r.items.length+' · Не є службовим документом</p>';window.print()}
 node.addEventListener("click",async function(e){var b=e.target.closest("[data-action]");if(!b)return;var act=b.dataset.action;try{
-if(act.startsWith("pg-")){purgatoryAction(b);return}if(act==="go-import")nav("imports");if(act==="go-records")nav("records");if(act==="add-record")recordModal(null);if(act==="edit")recordModal(state.records.find(function(x){return x.id===b.dataset.id}));if(act==="delete")deleteRecord(b.dataset.id);if(act==="structured-confirm")confirmStructured();
+if(act.startsWith("np-")){settlementsAction(b);return}if(act.startsWith("pg-")){purgatoryAction(b);return}if(act==="go-import")nav("imports");if(act==="go-records")nav("records");if(act==="add-record")recordModal(null);if(act==="edit")recordModal(state.records.find(function(x){return x.id===b.dataset.id}));if(act==="delete")deleteRecord(b.dataset.id);if(act==="structured-confirm")confirmStructured();
 if(act==="structured-prev"&&state.staged?.structured){state.staged.page--;render()}
 if(act==="structured-next"&&state.staged?.structured){state.staged.page++;render()}
 if(act==="structured-original"&&state.staged?.structured){state.staged.showOriginal=!state.staged.showOriginal;render()}
@@ -404,7 +413,9 @@ if(act==="export-xlsx"&&state.report)download(buildXlsx(state.report.items),"ana
 if(act==="export-docx"&&state.report)download(buildDocx(state.report.items),"analise_report_v"+state.report.version+".docx");
 if(act==="print-report")printReport()
 }catch(err){toast("Помилка: "+err.message)}});
-node.addEventListener("change",async function(e){var t=e.target;if(t.id==="file-input"){var f=t.files&&t.files[0];if(!f)return;try{await importFile(f)}catch(err){state.importError=err.message;render();toast("Не вдалося розібрати: "+err.message)}finally{t.value=""}}
+node.addEventListener("change",async function(e){var t=e.target;
+ if(t.id==="np-import-input"){const file=t.files&&t.files[0];try{if(file)await settlementImport(file)}catch(err){toast("Помилка імпорту: "+err.message)}finally{t.value=""}return}
+if(t.id==="file-input"){var f=t.files&&t.files[0];if(!f)return;try{await importFile(f)}catch(err){state.importError=err.message;render();toast("Не вдалося розібрати: "+err.message)}finally{t.value=""}}
 if(t.id==="pg-kind"){
    const context=node.querySelector("#pg-station-context");
    if(context){const show=t.value==="settlement";context.classList.toggle("hidden",!show);
