@@ -1,3 +1,4 @@
+import { DIRECTORY_EDIT_JS } from "./directory-edit-assets.js";
 import { DIRECTORY_VIEW_HTML, DIRECTORY_VIEW_JS } from "./directory-view-assets.js";
 import { DIRECTORY_IMPORT_HTML, DIRECTORY_IMPORT_CSS, DIRECTORY_IMPORT_JS } from "./directory-import-assets.js";
 import { directoryApi } from "./directories.js";
@@ -280,6 +281,7 @@ export default {
         if(url.pathname==="/api/import.css")return appAsset(IMPORT_CSS,"text/css; charset=utf-8");
         return appAsset(APP_JS, "text/javascript; charset=utf-8");
       }
+      if (url.pathname === "/api/directory-edit.js" && req.method === "GET") return appAsset(DIRECTORY_EDIT_JS,"text/javascript; charset=utf-8");
       if (url.pathname === "/api/directory-view" || url.pathname === "/api/directory-view.js") {
         if (req.method !== "GET") return error(405,"Дозволено лише GET");
         return appAsset(url.pathname.endsWith(".js") ? DIRECTORY_VIEW_JS : DIRECTORY_VIEW_HTML,
