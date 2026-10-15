@@ -6,7 +6,6 @@ on:
       - 'template-import.js'
       - 'report-versions.js'
       - 'purgatory-demo.js'
-      - 'purgatory-demo.js'
       - 'tests/**'
       - '.github/workflows/analise-checks.yml'
   push:
@@ -15,6 +14,7 @@ on:
       - 'index.html'
       - 'template-import.js'
       - 'report-versions.js'
+      - 'purgatory-demo.js'
       - 'tests/**'
       - '.github/workflows/analise-checks.yml'
 permissions:
