@@ -121,7 +121,7 @@ function duplicateNames(records){
 }
 function view(data,staged){
  const records=data||[],issues=records.filter(x=>x.error).length,duplicates=duplicateNames(records);
- const buttons='<div class="actions">'+
+ const buttons='<div class="actions"><a class="btn primary" href="https://analise-api.mr-schljakhta.workers.dev/api/directory-view" target="_blank" rel="noopener noreferrer">↗ Відкрити постійний довідник D1</a>'+
   '<button class="btn" data-action="np-template">↓ Шаблон XLSX</button>'+
   '<button class="btn" data-action="np-sample">Взяти тестові записи</button>'+
   '<button class="btn" data-action="np-choose">↑ Імпорт XLSX</button>'+
