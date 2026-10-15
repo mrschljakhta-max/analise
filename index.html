@@ -225,6 +225,50 @@ var block=n.error+n.conflict>0||st.duplicate;
 return '<div class="panel"><div class="panelhead"><h2>Попередній перегляд — '+esc(st.name)+'</h2>'+tag(block?"error":"done")+'</div><div class="recordmeta"><span>'+st.lines.length+' рядків</span><span>'+n.new+' нових</span><span>'+n.same+' збігів</span><span>'+n.update+' оновлень</span><span class="badtext">'+(n.error+n.conflict)+' проблем</span></div>'+
 (st.duplicate?'<div class="banner">Ці самі байти файлу вже були застосовані. Повторне застосування заблоковане.</div>':"")+
 '<div class="tablewrap"><table><thead><tr><th>Рядок</th><th>Джерело</th><th>Код</th><th>Значення</th><th>Перевірка</th></tr></thead><tbody>'+st.lines.map(function(r){return '<tr><td class="mono">'+esc(r.line)+'</td><td>'+esc(r.source)+'</td><td class="mono">'+esc(r.code)+'</td><td>'+esc(r.note)+'<div class="hintline">'+esc(r.at)+'</div></td><td>'+tag(r.status)+(r.issue?'<div class="hintline badtext">'+esc(r.issue)+'</div>':"")+'</td></tr>'}).join("")+'</tbody></table></div><div class="actions" style="margin-top:20px">'+btn("Підтвердити пакет","primary",block?'disabled': 'data-action="confirm-import"')+btn("Скасувати","quiet",'data-action="cancel-import"')+'</div><p class="footnote">Підтвердження у цій версії змінює лише дані відкритої вкладки. Постійне зберігання потребує захищеного API.</p></div>'}
+
+async function settlementImport(file){
+ const mod=window.ASTRA_SETTLEMENTS;
+ if(!file||!/\.xlsx$/i.test(file.name))throw Error("Обери файл XLSX");
+ if(file.size>mod.MAX_FILE)throw Error("Файл перевищує 8 МБ");
+ const entries=await unzip(await file.arrayBuffer());
+ const rows=mod.parseXlsxFiles(entries,window.mgrs);
+ state.settlementStaged={name:file.name,rows:rows};
+ audit("Довідник населених пунктів","Перегляд "+rows.length+" тестових записів");
+ render();
+ toast(rows.some(r=>r.error)?"Виявлено помилки MGRS — переглянь таблицю":"Розпізнано "+rows.length+" рядків");
+}
+function settlementsAction(button){
+ const action=button.dataset.action,mod=window.ASTRA_SETTLEMENTS;
+ if(action==="np-template"){
+  download(zip(mod.workbookParts([])),"ASTRA_settlements_template.xlsx");
+  toast("Завантажено шаблон із 8 колонками");return;
+ }
+ if(action==="np-choose"){document.getElementById("np-import-input").click();return;}
+ if(action==="np-sample"){
+  if(state.settlements.length&&!confirm("Замінити поточні тестові записи трьома синтетичними прикладами?"))return;
+  state.settlements=mod.sample(window.mgrs).map(r=>Object.assign({id:safeId()},r));
+  state.settlementStaged=null;
+  audit("Довідник населених пунктів","Додано 3 синтетичні записи");
+  render();toast("Тестові записи готові до експорту");return;
+ }
+ if(action==="np-export"){
+  if(state.settlements.some(r=>r.error))throw Error("Виправ помилки MGRS перед експортом");
+  const name="ASTRA_settlements_"+window.ASTRA_REPORT_VERSIONS.todayKyiv()+".xlsx";
+  download(zip(mod.workbookParts(state.settlements)),name);
+  audit("Довідник населених пунктів","Експортовано "+state.settlements.length+" тестових рядків");
+  toast("Експортовано "+state.settlements.length+" записів");return;
+ }
+ if(action==="np-cancel"){state.settlementStaged=null;render();return;}
+ if(action==="np-apply"){
+  const staged=state.settlementStaged;if(!staged)throw Error("Немає підготовленого імпорту");
+  if(staged.rows.some(r=>r.error))throw Error("Є некоректні MGRS");
+  if(!confirm("Замінити поточний локальний довідник ("+state.settlements.length+" записів) на "+staged.rows.length+" записів із файла?"))return;
+  state.settlements=staged.rows.map(r=>Object.assign({id:safeId()},r));
+  state.settlementStaged=null;
+  audit("Довідник населених пунктів","Імпортовано "+state.settlements.length+" тестових рядків");
+  render();toast("Імпортовано "+state.settlements.length+" записів у поточну вкладку");return;
+ }
+}
 function refsView(){
 return header("ДОВІДКОВА СИСТЕМА","Довідники","Єдині назви та категорії. Демонстраційний режим показує принцип редагування й архівування без серверного зберігання.",btn("＋ Додати елемент","primary",'data-action="add-ref"'))+
 window.ASTRA_SETTLEMENTS.view(state.settlements,state.settlementStaged)+
