@@ -37,6 +37,26 @@ export async function directoryApi(req,env,user,seg){
    const x=await env.DB.prepare("SELECT id,data_json,version,created_at,updated_at FROM directory_entries WHERE directory_id=? AND archived_at IS NULL ORDER BY id LIMIT ? OFFSET ?").bind(dir,limit,offset).all();
    return respond({items:x.results.map(r=>({id:r.id,data:JSON.parse(r.data_json),version:r.version,created_at:r.created_at,updated_at:r.updated_at})),limit,offset});
   }
+  if(seg.length===5&&["preview","batch"].includes(seg[4])&&method==="POST"){
+   if(user.role!=="admin")return fail(403,"Лише адміністратор");
+   const payload=await bodyJson(req),rows=payload.rows;
+   if(!Array.isArray(rows)||rows.length<1||rows.length>100) return fail(400,"Пакет: від 1 до 100 записів");
+   const errors=[],normalized=[];
+   for(let i=0;i<rows.length;i++){
+    try{normalized.push(JSON.parse(validate(schema,rows[i])));}
+    catch(e){errors.push({row:i+1,message:e.message});}
+   }
+   if(seg[4]==="preview")return respond({valid:errors.length===0,count:rows.length,errors});
+   if(errors.length)return respond({error:"Помилки валідації",errors},400);
+   const at=timestamp(),batch=[];
+   for(const data of normalized){
+    const id=crypto.randomUUID(),json=JSON.stringify(data);
+    batch.push(env.DB.prepare("INSERT INTO directory_entries(id,directory_id,data_json,created_by,updated_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?)").bind(id,dir,json,user.id,user.id,at,at));
+    batch.push(env.DB.prepare("INSERT INTO directory_entry_audit(entry_id,directory_id,action,actor_id,new_json,at) VALUES (?,?,?,?,?,?)").bind(id,dir,"create",user.id,json,at));
+   }
+   await env.DB.batch(batch);
+   return respond({created:rows.length},201);
+  }
   if(seg.length===4&&method==="POST"){
    if(user.role!=="admin")return fail(403,"Лише адміністратор");
    const payload=await bodyJson(req), data=validate(schema,payload.data),id=crypto.randomUUID(),at=timestamp();
@@ -64,6 +84,7 @@ export async function directoryApi(req,env,user,seg){
   return fail(405,"Непідтримувана дія");
  }catch(e){
   if(e instanceof SyntaxError||/^(Очікується|Завеликий|Некоректний|Невідомі|Обов'язкове|Неприпустимий)/.test(e.message))return fail(400,e.message);
+  if(e.message.startsWith("Пакет"))return fail(400,e.message);
   return fail(500,"Помилка сервера");
  }
 }
