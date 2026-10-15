@@ -55,12 +55,26 @@ table{border-collapse:collapse;width:100%;font-size:12px;text-align:left}th{padd
 .pg-add-grid{display:grid;grid-template-columns:minmax(140px,1fr) minmax(200px,1.6fr) minmax(180px,1.2fr) auto;gap:10px;align-items:end}
 .pg-add-grid input,.pg-add-grid select{width:100%}
 .pg-suggestion{border:1px solid #306357;border-radius:9px;background:#183a36;color:#baf6db;padding:10px;font-size:12px}
-.pg-actions{align-items:stretch;gap:8px}
+.pg-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;gap:9px}
+.pg-actions .btn{width:100%;white-space:normal;line-height:1.35;min-height:38px;padding:9px 11px}
+.pg-actions [data-action="pg-confirm"]{grid-column:1/-1;order:2}
+.pg-actions [data-action="pg-one"]{order:3}
+.pg-actions [data-action="pg-fix"],.pg-actions [data-action="pg-new"]{order:1}
+.pg-recommend{border:1px solid #316070;background:#0e2a39;border-radius:11px;padding:12px;margin:14px 0}
+.pg-recommend-heading{display:flex;justify-content:space-between;gap:8px;color:#b4dee3;font-weight:800;font-size:11px}
+.pg-recommend-heading span{color:#7ea6b7;font-weight:500}
+.pg-recommend-list{display:flex;gap:7px;flex-wrap:wrap;margin:11px 0}
+.pg-hint-btn{background:#1e394a;border:1px solid #476779;border-radius:9px;color:#b5e7e7;padding:8px 10px;font-size:11px;font-weight:800;text-align:left;overflow-wrap:anywhere}
+.pg-hint-btn:hover,.pg-hint-btn.selected{border-color:#71ebd0;background:#244d4c;color:#e0fff7}
+.pg-recommend p{margin:4px 0 0;color:#83a9b8;font-size:10px;line-height:1.5}
+.pg-card.pg-complete{animation:pg-complete .35s ease-in both;pointer-events:none}
+@keyframes pg-complete{0%{opacity:1;transform:scale(1)}35%{box-shadow:inset 0 0 0 2px #75e2a5}100%{opacity:0;transform:scale(.975)}}
+@media(prefers-reduced-motion:reduce){.pg-card.pg-complete{animation:none;opacity:.45}}
 .pg-details{margin-top:18px;border-top:1px solid #29465c;padding-top:12px;font-size:11px;color:#8fb3c7}
 .pg-details summary{cursor:pointer;color:#a3d7e0;font-weight:800}
 .pg-records{display:grid;gap:8px}.pg-records>div{padding:10px 12px;border-bottom:1px solid #294254;font-size:12px;line-height:1.5;color:#b9d2df}
 @media(max-width:1080px){.pg-grid{grid-template-columns:1fr}.pg-add-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:600px){.pg-fields,.pg-add-grid{grid-template-columns:1fr}.pg-card{padding:13px}}
+@media(max-width:600px){.pg-fields,.pg-add-grid,.pg-actions{grid-template-columns:1fr}.pg-card{padding:13px}.pg-recommend-heading{display:block}.pg-actions [data-action="pg-confirm"]{grid-column:1}}
 </style>
 </head>
 <body>
@@ -92,7 +106,7 @@ table{border-collapse:collapse;width:100%;font-size:12px;text-align:left}th{padd
 <div id="modal-root"></div><div id="toast-root"></div><div id="print-area"></div>
 <script src="./template-import.js?v=20261014-1"></script>
 <script src="./report-versions.js?v=20261015-2"></script>
-<script src="./purgatory-demo.js?v=20261015-1"></script>
+<script src="./purgatory-demo.js?v=20261015-2"></script>
 <script>
 "use strict";
 (function(){
@@ -131,6 +145,13 @@ function recordTable(data,tools){
 if(!data.length)return '<div class="empty"><div class="big">▤</div>Записів за вибраними параметрами немає</div>';
 return '<div class="tablewrap"><table><thead><tr><th>Код</th><th>Джерело</th><th>Дата й час</th><th>Категорія</th><th>Примітка</th>'+(tools?'<th>Дії</th>':"")+'</tr></thead><tbody>'+data.map(function(r){return '<tr><td class="mono">'+esc(r.code)+'</td><td>'+esc(r.source)+'</td><td class="muted">'+esc(shortDate(r.at))+'</td><td><span class="tag">'+esc(r.category)+'</span></td><td>'+esc(r.note)+'</td>'+(tools?'<td><div class="rowactions">'+btn("Змінити","tiny",'data-action="edit" data-id="'+esc(r.id)+'"')+btn("×","tiny danger",'data-action="delete" data-id="'+esc(r.id)+'"')+'</div></td>':"")+'</tr>'}).join("")+'</tbody></table></div>'}
 
+function pgFinish(card,message){
+ toast(message);
+ if(!card||!card.isConnected||state.view!=="purgatory"){render();return}
+ card.querySelectorAll("button").forEach(function(control){control.disabled=true});
+ card.classList.add("pg-complete");
+ setTimeout(function(){if(state.view==="purgatory")render()},360);
+}
 function purgatoryAction(button){
  const engine=window.ASTRA_PURGATORY,pg=state.purgatory;
  const act=button.dataset.action;
@@ -159,13 +180,21 @@ function purgatoryAction(button){
  if(act==="pg-new"){
    const result=engine.createCanonical(pg,key,card.querySelector(".pg-new-name").value);
    audit("Чистилище · нова назва",result.kind+" · "+result.count+" входжень");
-   render();toast("Назву створено й підтверджено в демосесії");return;
+   pgFinish(card,"Назву створено й підтверджено в демосесії");return;
+ }
+ if(act==="pg-choose"){
+   const id=button.dataset.pgTarget;
+   if(!pg.dictionary[group.kind].some(item=>item.active&&item.id===id))throw Error("Підказка більше не доступна");
+   pg.choices[key]=id;
+   card.querySelector(".pg-target").value=id;
+   card.querySelectorAll(".pg-hint-btn").forEach(function(x){x.classList.toggle("selected",x.dataset.pgTarget===id)});
+   toast("Підказку вибрано. Перевір значення й підтвердь рішення.");return;
  }
  if(act==="pg-confirm"||act==="pg-one"){
    const targetId=card.querySelector(".pg-target").value;
    const result=engine.resolve(pg,key,targetId,act==="pg-one"?"one":"group");
    audit("Чистилище · підтвердження",result.kind+" · "+result.count+" входжень");
-   render();toast("Підтверджено "+result.count+" записів");return;
+   pgFinish(card,"Підтверджено "+result.count+" записів");return;
  }
 }
 function recordsView(){
@@ -376,7 +405,15 @@ if(act==="export-docx"&&state.report)download(buildDocx(state.report.items),"ana
 if(act==="print-report")printReport()
 }catch(err){toast("Помилка: "+err.message)}});
 node.addEventListener("change",async function(e){var t=e.target;if(t.id==="file-input"){var f=t.files&&t.files[0];if(!f)return;try{await importFile(f)}catch(err){state.importError=err.message;render();toast("Не вдалося розібрати: "+err.message)}finally{t.value=""}}
-if(t.classList.contains("pg-target")){state.purgatory.choices[t.dataset.pgKey]=t.value}
+if(t.id==="pg-kind"){
+   const context=node.querySelector("#pg-station-context");
+   if(context){const show=t.value==="settlement";context.classList.toggle("hidden",!show);
+     context.querySelector("#pg-station").disabled=!show;}
+ }
+ if(t.classList.contains("pg-target")){state.purgatory.choices[t.dataset.pgKey]=t.value;
+   const card=t.closest(".pg-card");
+   if(card)card.querySelectorAll(".pg-hint-btn").forEach(function(x){x.classList.toggle("selected",x.dataset.pgTarget===t.value)});
+ }
  if(t.id==="pg-kind-filter"){state.purgatory.kindFilter=t.value;render()}
  if(t.id==="structured-report-day"&&state.staged?.structured){state.staged.reportDay=t.value;render()}
  if(t.id==="filter-src"){state.srcfilter=t.value;render()}if(t.id==="filter-cat"){state.catfilter=t.value;render()}if(t.id==="report-day"){state.day=t.value;state.reportDateEdited=true;render()}});
