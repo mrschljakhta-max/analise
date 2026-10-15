@@ -5,6 +5,10 @@ on:
     paths:
       - 'scripts/build-settlements-xlsx.cjs'
       - '.github/workflows/publish-settlements.yml'
+  pull_request:
+    paths:
+      - 'scripts/build-settlements-xlsx.cjs'
+      - '.github/workflows/publish-settlements.yml'
   workflow_dispatch:
 permissions:
   contents: write
@@ -45,6 +49,7 @@ jobs:
           print("Workbook valid; 3975 settlements, 8 headers")
           PY
       - name: Publish download on main branch
+        if: github.event_name != 'pull_request'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
