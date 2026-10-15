@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {validateCatalogLinks} from '../src/station-catalog-integrity.js';
+const models=[{id:'model-a',can_detect:1,can_jam:1},{id:'model-b',can_detect:0,can_jam:1}];
+const antennas=[{id:'a',station_type_id:'model-a',antenna_kind:'detection',mode:'detect'},{id:'b',station_type_id:'model-b',antenna_kind:'directional_jam',mode:'jam'}];
+const stations=[{id:'s',station_type_id:'model-a'}];
+test('valid administrative links',()=>assert.equal(validateCatalogLinks({models,antennas,stations,states:[{station_id:'s',type_antenna_id:'a'}]}).ok,true));
+test('reject antenna from different model',()=>assert.deepEqual(validateCatalogLinks({models,antennas,stations,states:[{station_id:'s',type_antenna_id:'b'}]}).errors.map(e=>e.code),['MODEL_MISMATCH']));
+test('reject detection capability mismatch',()=>assert.ok(validateCatalogLinks({models:[{id:'model-a',can_detect:0,can_jam:1}],antennas:[antennas[0]]}).errors.some(e=>e.code==='DETECT_DISABLED')));
+test('reject missing antenna',()=>assert.ok(validateCatalogLinks({models,antennas,stations,states:[{station_id:'s',type_antenna_id:'missing'}]}).errors.some(e=>e.code==='MISSING_REFERENCE')));
