@@ -1,3 +1,5 @@
+import { STATION_DIRECTORY_HTML, STATION_DIRECTORY_CSS, STATION_DIRECTORY_JS } from "./station-directory-assets.js";
+import { stationDirectoryApi } from "./station-directory-api.js";
 import { STATION_IMPORT_HTML, STATION_IMPORT_CSS, STATION_IMPORT_JS } from "./station-import-assets.js";
 import { stationImportApi } from "./station-import-api.js";
 import { stationCompareApi } from "./station-compare-api.js";
@@ -288,6 +290,13 @@ export default {
         if(url.pathname==="/api/import.css")return appAsset(IMPORT_CSS,"text/css; charset=utf-8");
         return appAsset(APP_JS, "text/javascript; charset=utf-8");
       }
+      if (["/api/station-directory","/api/station-directory.js","/api/station-directory.css"].includes(url.pathname)) {
+        if(req.method!=="GET")return error(405,"Дозволено лише GET");
+        if(user.role!=="admin")return error(403,"Лише адміністратор");
+        if(url.pathname==="/api/station-directory")return appAsset(STATION_DIRECTORY_HTML,"text/html; charset=utf-8");
+        if(url.pathname==="/api/station-directory.js")return appAsset(STATION_DIRECTORY_JS,"text/javascript; charset=utf-8");
+        return appAsset(STATION_DIRECTORY_CSS,"text/css; charset=utf-8");
+      }
       if (url.pathname === "/api/station-compare") return stationCompareApi(req, env, user);
       if (["/api/station-import","/api/station-import.js","/api/station-import.css"].includes(url.pathname)) {
         if(req.method!=="GET")return error(405,"Дозволено лише GET");
@@ -337,6 +346,7 @@ export default {
         await env.DB.prepare("SELECT 1 AS ok").first();
         return reply({ok:true,database:true,private_files:!!env.DOCUMENTS,files_enabled:env.FILE_UPLOAD_ENABLED==="true"});
       }
+      if(seg[1]==="station-directory")return await stationDirectoryApi(req,env,user,seg);
       if(seg[1]==="station-import")return await stationImportApi(req,user,seg);
       if(seg[1]==="org-directories")return await orgApi(req,env,user,seg);
       if(seg[1]==="directories")return await directoryApi(req,env,user,seg);
