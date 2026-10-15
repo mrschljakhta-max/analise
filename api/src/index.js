@@ -1,3 +1,4 @@
+import { ORG_DIRECTORY_HTML, ORG_DIRECTORY_JS } from "./org-directory-assets.js";
 import { ORG_IMPORT_HTML, ORG_IMPORT_CSS, ORG_IMPORT_JS } from "./org-import-assets.js";
 import { orgApi } from "./org-directories.js";
 import { DIRECTORY_CATALOG_HTML, DIRECTORY_CATALOG_JS } from "./directory-catalog-assets.js";
@@ -283,6 +284,11 @@ export default {
         if(url.pathname==="/api/import.js")return appAsset(IMPORT_JS,"text/javascript; charset=utf-8");
         if(url.pathname==="/api/import.css")return appAsset(IMPORT_CSS,"text/css; charset=utf-8");
         return appAsset(APP_JS, "text/javascript; charset=utf-8");
+      }
+      if (url.pathname === "/api/org-directory" || url.pathname === "/api/org-directory.js") {
+        if (req.method !== "GET") return error(405, "Дозволено лише GET");
+        if (user.role !== "admin") return error(403, "Лише адміністратор");
+        return appAsset(url.pathname.endsWith(".js") ? ORG_DIRECTORY_JS : ORG_DIRECTORY_HTML, url.pathname.endsWith(".js") ? "text/javascript; charset=utf-8" : "text/html; charset=utf-8");
       }
       if (["/api/org-import","/api/org-import.js","/api/org-import.css"].includes(url.pathname)) {
         if(req.method!=="GET")return error(405,"Дозволено лише GET");
