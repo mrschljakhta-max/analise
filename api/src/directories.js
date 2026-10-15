@@ -18,6 +18,11 @@ export function validate(schema, data){
    if(f.required&&(v===undefined||v===null||String(v).trim()===""))throw Error("Обов'язкове поле: "+f.key);
    if(v!==undefined&&v!==null&&!(typeof v==="string"||typeof v==="number"))throw Error("Неприпустимий тип: "+f.key);
    if(typeof v==="string"&&v.length>500)throw Error("Завелике значення: "+f.key);
+   if(v!==undefined&&v!==null&&String(v).trim()!==""){
+    if(f.type==="number"&&(!Number.isFinite(Number(v))||String(v).trim()===""))throw Error("Потрібне число: "+f.key);
+    if(f.type==="date"&&(!/^\\d{4}-\\d{2}-\\d{2}$/.test(String(v))||Number.isNaN(Date.parse(String(v)+"T00:00:00Z"))))throw Error("Некоректна дата: "+f.key);
+    if(f.type==="select"&&(!Array.isArray(f.options)||!f.options.includes(String(v))))throw Error("Невідоме значення списку: "+f.key);
+   }
  }
  if(schema.fields.some(f=>f.key==="mgrs")){
    const mgrs=String(data.mgrs??"").toUpperCase().replace(/\s+/g,"");
@@ -35,8 +40,31 @@ export function validate(schema, data){
 export async function directoryApi(req,env,user,seg){
  try{
   const method=req.method, dir=seg[2];
+  if(seg.length===2&&method==="POST"){
+   if(user.role!=="admin")return fail(403,"Лише адміністратор");
+   const body=await bodyJson(req),id=String(body.id??"").trim().toLowerCase(),title=String(body.title??"").trim(),fields=body.fields;
+   if(!/^[a-z][a-z0-9_-]{1,59}$/.test(id))return fail(400,"Код: 2–60 латинських символів, цифр, _ або -; початок — літера");
+   if(!title||title.length>160)return fail(400,"Назва: від 1 до 160 символів");
+   if(!Array.isArray(fields)||fields.length<1||fields.length>30)return fail(400,"Потрібно від 1 до 30 колонок");
+   const used=new Set(),clean=[];
+   for(const f of fields){
+    const key=String(f?.key??"").trim().toLowerCase(),label=String(f?.label??"").trim(),type=String(f?.type??"text");
+    if(!/^[a-z][a-z0-9_]{0,49}$/.test(key)||used.has(key))return fail(400,"Невірний або повторний код колонки: "+key);
+    if(!label||label.length>100||!["text","number","date","select"].includes(type))return fail(400,"Невірна назва або тип колонки: "+key);
+    const field={key,label,type,required:f.required===true};
+    if(type==="select"){
+     if(!Array.isArray(f.options)||f.options.length<1||f.options.length>100)return fail(400,"Для списку потрібні варіанти: "+key);
+     field.options=f.options.map(x=>String(x).trim());
+     if(field.options.some(x=>!x||x.length>100)||new Set(field.options).size!==field.options.length)return fail(400,"Невірні варіанти списку: "+key);
+    }
+    used.add(key);clean.push(field);
+   }
+   const at=timestamp();
+   await env.DB.prepare("INSERT INTO directory_types(id,title,schema_json,created_at,updated_at) VALUES (?,?,?,?,?)").bind(id,title,JSON.stringify({fields:clean}),at,at).run();
+   return respond({id,title,schema:{fields:clean},version:1},201);
+  }
   if(seg.length===2&&method==="GET"){
-   const x=await env.DB.prepare("SELECT id,title,schema_json,version FROM directory_types ORDER BY title").all();
+   const x=await env.DB.prepare("SELECT t.id,t.title,t.schema_json,t.version,COUNT(e.id) AS entries_count FROM directory_types t LEFT JOIN directory_entries e ON e.directory_id=t.id AND e.archived_at IS NULL GROUP BY t.id ORDER BY t.title").all();
    return respond({items:x.results.map(r=>({...r,schema:JSON.parse(r.schema_json),schema_json:undefined}))});
   }
   if(!dir||!/^[a-z][a-z0-9_-]{1,59}$/.test(dir))return fail(404,"Невідомий довідник");
