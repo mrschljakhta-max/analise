@@ -50,6 +50,12 @@ export async function directoryApi(req,env,user,seg){
    const x=await env.DB.prepare("SELECT id,data_json,version,created_at,updated_at FROM directory_entries WHERE directory_id=? AND archived_at IS NULL ORDER BY id LIMIT ? OFFSET ?").bind(dir,limit,offset).all();
    return respond({items:x.results.map(r=>({id:r.id,data:JSON.parse(r.data_json),version:r.version,created_at:r.created_at,updated_at:r.updated_at})),limit,offset});
   }
+  if(seg.length===6&&seg[5]==="audit"&&method==="GET"){
+   const found=await env.DB.prepare("SELECT id FROM directory_entries WHERE id=? AND directory_id=?").bind(seg[4],dir).first();
+   if(!found)return fail(404,"Запис не знайдено");
+   const result=await env.DB.prepare("SELECT action,actor_id,old_json,new_json,at FROM directory_entry_audit WHERE entry_id=? AND directory_id=? ORDER BY at DESC LIMIT 100").bind(seg[4],dir).all();
+   return respond({items:result.results});
+  }
   if(seg.length===5&&["preview","batch"].includes(seg[4])&&method==="POST"){
    if(user.role!=="admin")return fail(403,"Лише адміністратор");
    const payload=await bodyJson(req),rows=payload.rows;
@@ -107,7 +113,7 @@ export async function directoryApi(req,env,user,seg){
   return fail(405,"Непідтримувана дія");
  }catch(e){
   if(e instanceof SyntaxError||/^(Очікується|Завеликий|Некоректний|Невідомі|Обов'язкове|Неприпустимий)/.test(e.message))return fail(400,e.message);
-  if(e.message.startsWith("Некоректний формат MGRS"))return fail(400,e.message);
+  if(e.message.startsWith("Некоректний формат MGRS")||e.message.startsWith("Широта і довгота"))return fail(400,e.message);
   if(e.message.startsWith("Пакет"))return fail(400,e.message);
   if(/UNIQUE constraint failed/.test(String(e.message)))return fail(409,"Такий запис уже існує");
   return fail(500,"Помилка сервера");
