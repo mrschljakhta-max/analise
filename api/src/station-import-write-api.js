@@ -38,7 +38,7 @@ function preparePayload(input){
       return {errors:[{message:"Неприпустимі поля у "+k+" (можна передавати лише облікові дані)"}],warnings};
   }
   const types=[],bands=[],stations=[],mapRows=[];
-  const typeIds=new Set(),typeCodes=new Set(),bandIds=new Set(),stationCodes=new Set(),kindIds=new Set(),mapIds=new Set();
+  const typeIds=new Set(),typeCodes=new Set(),typeNames=new Set(),bandIds=new Set(),stationCodes=new Set(),kindIds=new Set(),mapIds=new Set();
   input.types.forEach((v,i)=>{
     const row=i+2,import_code=text(v.import_code),type_code=text(v.type_code),name=text(v.name),
       category=text(v.category),normalized_name=text(v.normalized_name)||name.toLocaleLowerCase("uk"),
@@ -47,9 +47,9 @@ function preparePayload(input){
        !maxLength(normalized_name,200)||!category||!maxLength(category,80)||!maxLength(note,2000)||
        can_detect===null||can_jam===null||is_active===null)
       issue(errors,"DICT_STATION_TYPES",row,"Неповні або некоректні поля моделі");
-    if(typeIds.has(norm(import_code))||typeCodes.has(norm(type_code)))
+    if(typeIds.has(norm(import_code))||typeCodes.has(norm(type_code))||typeNames.has(norm(name)))
       issue(errors,"DICT_STATION_TYPES",row,"Повторний код моделі");
-    typeIds.add(norm(import_code));typeCodes.add(norm(type_code));
+    typeIds.add(norm(import_code));typeCodes.add(norm(type_code));typeNames.add(norm(name));
     types.push({import_code,type_code,name,normalized_name,category,can_detect,can_jam,is_active,note});
   });
   input.bands.forEach((v,i)=>{
