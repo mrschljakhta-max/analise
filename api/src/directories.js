@@ -7,7 +7,7 @@ async function bodyJson(req){
   const s=await req.text();if(new TextEncoder().encode(s).length>65536)throw Error("Завеликий запит");
   return JSON.parse(s);
 }
-function validate(schema, data){
+export function validate(schema, data){
  if(!data||typeof data!=="object"||Array.isArray(data))throw Error("Некоректний запис");
  const keys=new Set(schema.fields.map(f=>f.key));
  if(Object.keys(data).some(k=>!keys.has(k)))throw Error("Невідомі поля");
@@ -16,6 +16,11 @@ function validate(schema, data){
    if(f.required&&(v===undefined||v===null||String(v).trim()===""))throw Error("Обов'язкове поле: "+f.key);
    if(v!==undefined&&v!==null&&!(typeof v==="string"||typeof v==="number"))throw Error("Неприпустимий тип: "+f.key);
    if(typeof v==="string"&&v.length>500)throw Error("Завелике значення: "+f.key);
+ }
+ if(schema.fields.some(f=>f.key==="mgrs")){
+   const mgrs=String(data.mgrs??"").toUpperCase().replace(/\\s+/g,"");
+   if(mgrs && !/^(?:[1-9]|[1-5][0-9]|60)[C-HJ-NP-X][A-HJ-NP-Z]{2}(?:\\d{2}){0,5}$/.test(mgrs))
+    throw Error("Некоректний формат MGRS");
  }
  if(schema.fields.some(f=>f.key==="lat") && schema.fields.some(f=>f.key==="lon")){
    const lat=data.lat,lon=data.lon;
@@ -99,6 +104,7 @@ export async function directoryApi(req,env,user,seg){
   return fail(405,"Непідтримувана дія");
  }catch(e){
   if(e instanceof SyntaxError||/^(Очікується|Завеликий|Некоректний|Невідомі|Обов'язкове|Неприпустимий)/.test(e.message))return fail(400,e.message);
+  if(e.message.startsWith("Некоректний формат MGRS"))return fail(400,e.message);
   if(e.message.startsWith("Пакет"))return fail(400,e.message);
   if(/UNIQUE constraint failed/.test(String(e.message)))return fail(409,"Такий запис уже існує");
   return fail(500,"Помилка сервера");
