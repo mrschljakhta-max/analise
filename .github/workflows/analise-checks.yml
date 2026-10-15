@@ -6,6 +6,8 @@ on:
       - 'template-import.js'
       - 'report-versions.js'
       - 'purgatory-demo.js'
+      - 'settlements-exchange.js'
+      - 'vendor/mgrs.min.js'
       - 'tests/**'
       - '.github/workflows/analise-checks.yml'
   push:
@@ -15,6 +17,8 @@ on:
       - 'template-import.js'
       - 'report-versions.js'
       - 'purgatory-demo.js'
+      - 'settlements-exchange.js'
+      - 'vendor/mgrs.min.js'
       - 'tests/**'
       - '.github/workflows/analise-checks.yml'
 permissions:
@@ -31,6 +35,7 @@ jobs:
         run: |
           node --check report-versions.js
           node --check purgatory-demo.js
+          node --check settlements-exchange.js
           node --check template-import.js
           node -e "const fs=require('fs');const html=fs.readFileSync('index.html','utf8');const matches=[...html.matchAll(/<script(?:\\s[^>]*)?>([\\s\\S]*?)<\\/script>/g)];if(!matches.length)throw Error('Inline script not found');for(const match of matches)new Function(match[1]);"
       - name: Test day and revision logic
