@@ -42,6 +42,25 @@ table{border-collapse:collapse;width:100%;font-size:12px;text-align:left}th{padd
 .structured-station td{color:#6de9da;font-weight:800;background:#0f3341}
 .structured-pages{align-items:center;justify-content:flex-start}
 @media(min-width:900px){.structured-table-scroll table:has(th:nth-child(30)){min-width:2900px}}
+
+/* ASTRA 3.0 · local Purgatory */
+.pg-nav-count{margin-left:auto;border-radius:999px;background:#284b53;color:#aaf8e6;min-width:22px;height:20px;padding:0 6px;align-items:center;justify-content:center;font-size:10px;font-weight:800}
+.pg-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.pg-card{margin:0;padding:19px;background:linear-gradient(150deg,#142c3e,#101e2e)}
+.pg-value{font-size:22px;letter-spacing:.3px;font-weight:850;color:#e7f7fa;overflow-wrap:anywhere;margin:5px 0 13px}
+.pg-warn-character{color:#ffe3c1;background:#6e333e;border-bottom:2px solid #ff9a77;border-radius:3px;padding:1px 2px}
+.pg-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+.pg-fields .formgroup{min-width:0}.pg-fields .formgroup select,.pg-fields .formgroup input{width:100%}
+.pg-fields .formgroup span,.pg-add-grid .formgroup span{font-size:11px;color:#a7c4d3;font-weight:700}
+.pg-add-grid{display:grid;grid-template-columns:minmax(140px,1fr) minmax(200px,1.6fr) minmax(180px,1.2fr) auto;gap:10px;align-items:end}
+.pg-add-grid input,.pg-add-grid select{width:100%}
+.pg-suggestion{border:1px solid #306357;border-radius:9px;background:#183a36;color:#baf6db;padding:10px;font-size:12px}
+.pg-actions{align-items:stretch;gap:8px}
+.pg-details{margin-top:18px;border-top:1px solid #29465c;padding-top:12px;font-size:11px;color:#8fb3c7}
+.pg-details summary{cursor:pointer;color:#a3d7e0;font-weight:800}
+.pg-records{display:grid;gap:8px}.pg-records>div{padding:10px 12px;border-bottom:1px solid #294254;font-size:12px;line-height:1.5;color:#b9d2df}
+@media(max-width:1080px){.pg-grid{grid-template-columns:1fr}.pg-add-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.pg-fields,.pg-add-grid{grid-template-columns:1fr}.pg-card{padding:13px}}
 </style>
 </head>
 <body>
@@ -53,6 +72,7 @@ table{border-collapse:collapse;width:100%;font-size:12px;text-align:left}th{padd
    <button data-view="overview" class="active"><span class="ico">◈</span> Огляд</button>
    <button data-view="imports"><span class="ico">⇧</span> Завантаження</button>
    <button data-view="records"><span class="ico">▤</span> Журнали</button>
+   <button data-view="purgatory"><span class="ico">◇</span> Чистилище <span id="pg-nav-count" class="pg-nav-count" aria-label="Невирішені завдання"></span></button>
    <button data-view="references"><span class="ico">▦</span> Довідники</button>
    <button data-view="reports"><span class="ico">▥</span> Звіти та експорт</button>
    <button data-view="audit"><span class="ico">◷</span> Історія змін</button>
@@ -72,6 +92,7 @@ table{border-collapse:collapse;width:100%;font-size:12px;text-align:left}th{padd
 <div id="modal-root"></div><div id="toast-root"></div><div id="print-area"></div>
 <script src="./template-import.js?v=20261014-1"></script>
 <script src="./report-versions.js?v=20261015-2"></script>
+<script src="./purgatory-demo.js?v=20261015-1"></script>
 <script>
 "use strict";
 (function(){
@@ -81,7 +102,8 @@ var state={view:"overview",role:"duty",records:[
 {id:"R3",source:"Джерело Б",code:"T001",at:"2026-10-13T00:10:00",category:"Архів",note:"Пакет 3",version:1,author:"Демо",deleted:false},
 {id:"R4",source:"Джерело Б",code:"T002",at:"2026-10-13T14:59:59",category:"Облік",note:"Пакет 4",version:1,author:"Демо",deleted:false}
 ],refs:{source:["Джерело А","Джерело Б"],category:["Архів","Облік"]},imports:[],staged:null,importError:"",report:null,reports:[],audit:[],search:"",srcfilter:"all",catfilter:"all",day:window.ASTRA_REPORT_VERSIONS.todayKyiv(),reportDateEdited:false};
-var views={overview:"Огляд",imports:"Завантаження",records:"Журнали",references:"Довідники",reports:"Звіти та експорт",audit:"Історія змін",admin:"Налаштування",maps:"Карти"};
+state.purgatory=window.ASTRA_PURGATORY.seed();
+var views={overview:"Огляд",imports:"Завантаження",records:"Журнали",purgatory:"Чистилище",references:"Довідники",reports:"Звіти та експорт",audit:"Історія змін",admin:"Налаштування",maps:"Карти"};
 var node=document.getElementById("view");
 function esc(s){return String(s===undefined||s===null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;")}
 function now(){return new Date().toLocaleString("uk-UA",{timeZone:"Europe/Kyiv"})}
@@ -97,7 +119,8 @@ function shortDate(s){return stamp(s).slice(0,16).replace(/-/g,".")}
 function tag(s){var m={new:"good",same:"info",update:"warn",error:"bad",conflict:"bad",skipped:"info",done:"good",checked:"good",superseded:"info"};var names={new:"Новий",same:"Збіг",update:"Оновлення",error:"Помилка",conflict:"Конфлікт",skipped:"Пропущено",done:"Завершено",checked:"Актуальна версія",superseded:"Попередня версія"};return '<span class="tag '+(m[s]||"")+'">'+esc(names[s]||s)+'</span>'}
 function nav(to){if(to==="maps"){toast("Карти перенесені за межі першої версії згідно з ТЗ 0.2");return}if(to==="reports"&&!state.reportDateEdited)state.day=window.ASTRA_REPORT_VERSIONS.todayKyiv();state.view=to;state.search="";render();window.scrollTo(0,0)}
 document.getElementById("nav").addEventListener("click",function(e){var b=e.target.closest("[data-view]");if(b)nav(b.dataset.view)});
-function render(){document.getElementById("crumb").textContent=views[state.view];document.getElementById("user-label").textContent=state.role==="admin"?"Адміністратор · демо":"Черговий · демо";document.querySelectorAll("#nav button").forEach(function(b){b.classList.toggle("active",b.dataset.view===state.view)});var m={overview:overview,imports:importsView,records:recordsView,references:refsView,reports:reportsView,audit:auditView,admin:adminView};node.innerHTML=m[state.view]();}
+function render(){document.getElementById("crumb").textContent=views[state.view];document.getElementById("user-label").textContent=state.role==="admin"?"Адміністратор · демо":"Черговий · демо";document.querySelectorAll("#nav button").forEach(function(b){b.classList.toggle("active",b.dataset.view===state.view)});var pgCount=window.ASTRA_PURGATORY.groups(state.purgatory).length;var pgBadge=document.getElementById("pg-nav-count");if(pgBadge){pgBadge.textContent=String(pgCount);pgBadge.style.display=pgCount?"inline-flex":"none"}
+ var m={overview:overview,imports:importsView,records:recordsView,purgatory:function(){return window.ASTRA_PURGATORY.view(state.purgatory)},references:refsView,reports:reportsView,audit:auditView,admin:adminView};node.innerHTML=m[state.view]();}
 function overview(){
 var x=rows(),counts={};x.forEach(function(r){counts[r.source]=(counts[r.source]||0)+1});
 return header("АНАЛІТИЧНИЙ ЦЕНТР","Панель керування","Єдиний простір для перевірки імпорту, ведення журналів та підготовки звітів на тестових даних.",btn("＋ Новий імпорт","primary",'data-action="go-import"')+btn("Відкрити журнал","",'data-action="go-records"'))+
@@ -107,6 +130,44 @@ return header("АНАЛІТИЧНИЙ ЦЕНТР","Панель керуванн
 function recordTable(data,tools){
 if(!data.length)return '<div class="empty"><div class="big">▤</div>Записів за вибраними параметрами немає</div>';
 return '<div class="tablewrap"><table><thead><tr><th>Код</th><th>Джерело</th><th>Дата й час</th><th>Категорія</th><th>Примітка</th>'+(tools?'<th>Дії</th>':"")+'</tr></thead><tbody>'+data.map(function(r){return '<tr><td class="mono">'+esc(r.code)+'</td><td>'+esc(r.source)+'</td><td class="muted">'+esc(shortDate(r.at))+'</td><td><span class="tag">'+esc(r.category)+'</span></td><td>'+esc(r.note)+'</td>'+(tools?'<td><div class="rowactions">'+btn("Змінити","tiny",'data-action="edit" data-id="'+esc(r.id)+'"')+btn("×","tiny danger",'data-action="delete" data-id="'+esc(r.id)+'"')+'</div></td>':"")+'</tr>'}).join("")+'</tbody></table></div>'}
+
+function purgatoryAction(button){
+ const engine=window.ASTRA_PURGATORY,pg=state.purgatory;
+ const act=button.dataset.action;
+ if(act==="pg-reset"){
+   if(!confirm("Повернути початкові синтетичні приклади «Чистилища»? Усі локальні рішення цього розділу буде скинуто."))return;
+   state.purgatory=engine.seed();audit("Чистилище","Скинуто синтетичні приклади");render();toast("Приклади відновлено");return;
+ }
+ if(act==="pg-add"){
+   const kind=node.querySelector("#pg-kind").value,raw=node.querySelector("#pg-raw").value,
+     stationId=node.querySelector("#pg-station").value;
+   const result=engine.addDemo(pg,kind,raw,stationId);
+   audit("Чистилище · приклад",kind+" · "+(result.known?"Відоме значення":"Нове завдання"));
+   render();toast(result.known?"Назву визначено за довідником або аліасом":"Значення додано до перевірки");return;
+ }
+ const key=button.dataset.pgKey;
+ if(!key)throw Error("Не визначено завдання");
+ const group=engine.matchingGroup(pg,key),card=button.closest(".pg-card");
+ if(act==="pg-fix"){
+   const proposed=engine.correctionWithDigits(group.raw);
+   if(proposed===group.raw){toast("Підозрілих символів для заміни немає");return;}
+   pg.proposals[key]=proposed;
+   const candidates=pg.dictionary[group.kind].filter(x=>x.active&&engine.normal(x.name)===engine.normal(proposed));
+   pg.choices[key]=candidates.length===1?candidates[0].id:"";
+   render();toast("Виправлені символи показано як пропозицію. Остаточне рішення за оператором.");return;
+ }
+ if(act==="pg-new"){
+   const result=engine.createCanonical(pg,key,card.querySelector(".pg-new-name").value);
+   audit("Чистилище · нова назва",result.kind+" · "+result.count+" входжень");
+   render();toast("Назву створено й підтверджено в демосесії");return;
+ }
+ if(act==="pg-confirm"||act==="pg-one"){
+   const targetId=card.querySelector(".pg-target").value;
+   const result=engine.resolve(pg,key,targetId,act==="pg-one"?"one":"group");
+   audit("Чистилище · підтвердження",result.kind+" · "+result.count+" входжень");
+   render();toast("Підтверджено "+result.count+" записів");return;
+ }
+}
 function recordsView(){
 var data=rows().filter(function(r){var q=state.search.toLowerCase();return (!q||[r.code,r.note,r.source,r.category].join(" ").toLowerCase().includes(q))&&(state.srcfilter==="all"||r.source===state.srcfilter)&&(state.catfilter==="all"||r.category===state.catfilter)});
 return header("РЕЄСТР ДАНИХ","Журнал записів","Синтетичні події, ручне редагування та контроль версій у межах демонстраційної сесії.",btn("＋ Створити запис","primary",'data-action="add-record"'))+
@@ -304,7 +365,7 @@ function buildDocx(lines){var body="",last="";function cell(text,merge){return '
 function exampleRows(){return[{source:"Джерело А",code:"T003",at:"2026-10-13T10:05:00",category:"Облік",note:"Новий тестовий запис"},{source:"Джерело Б",code:"T003",at:"2026-10-13T11:25:00",category:"Архів",note:"Пакет 5"}]}
 function printReport(){if(!state.report)return;var r=state.report;document.getElementById("print-area").innerHTML='<h1>ANALISE · Демонстраційний звіт №'+r.version+'</h1><p>Період: '+esc(prevDay(r.day))+' 15:00 — '+esc(r.day)+' 15:00, Europe/Kyiv<br>Сформовано: '+esc(r.date)+'</p>'+recordTable(r.items,false)+'<p>Усього записів: '+r.items.length+' · Не є службовим документом</p>';window.print()}
 node.addEventListener("click",async function(e){var b=e.target.closest("[data-action]");if(!b)return;var act=b.dataset.action;try{
-if(act==="go-import")nav("imports");if(act==="go-records")nav("records");if(act==="add-record")recordModal(null);if(act==="edit")recordModal(state.records.find(function(x){return x.id===b.dataset.id}));if(act==="delete")deleteRecord(b.dataset.id);if(act==="structured-confirm")confirmStructured();
+if(act.startsWith("pg-")){purgatoryAction(b);return}if(act==="go-import")nav("imports");if(act==="go-records")nav("records");if(act==="add-record")recordModal(null);if(act==="edit")recordModal(state.records.find(function(x){return x.id===b.dataset.id}));if(act==="delete")deleteRecord(b.dataset.id);if(act==="structured-confirm")confirmStructured();
 if(act==="structured-prev"&&state.staged?.structured){state.staged.page--;render()}
 if(act==="structured-next"&&state.staged?.structured){state.staged.page++;render()}
 if(act==="structured-original"&&state.staged?.structured){state.staged.showOriginal=!state.staged.showOriginal;render()}
@@ -315,9 +376,18 @@ if(act==="export-docx"&&state.report)download(buildDocx(state.report.items),"ana
 if(act==="print-report")printReport()
 }catch(err){toast("Помилка: "+err.message)}});
 node.addEventListener("change",async function(e){var t=e.target;if(t.id==="file-input"){var f=t.files&&t.files[0];if(!f)return;try{await importFile(f)}catch(err){state.importError=err.message;render();toast("Не вдалося розібрати: "+err.message)}finally{t.value=""}}
-if(t.id==="structured-report-day"&&state.staged?.structured){state.staged.reportDay=t.value;render()}
+if(t.classList.contains("pg-target")){state.purgatory.choices[t.dataset.pgKey]=t.value}
+ if(t.id==="pg-kind-filter"){state.purgatory.kindFilter=t.value;render()}
+ if(t.id==="structured-report-day"&&state.staged?.structured){state.staged.reportDay=t.value;render()}
  if(t.id==="filter-src"){state.srcfilter=t.value;render()}if(t.id==="filter-cat"){state.catfilter=t.value;render()}if(t.id==="report-day"){state.day=t.value;state.reportDateEdited=true;render()}});
 node.addEventListener("input",function(e){
+ if(e.target.id==="pg-filter"){
+   const pos=e.target.selectionStart;
+   state.purgatory.filter=e.target.value;render();
+   const newInput=node.querySelector("#pg-filter");
+   if(newInput){newInput.focus();newInput.setSelectionRange(pos,pos)}return;
+ }
+
 if(e.target.id==="structured-search"&&state.staged?.structured){
   state.staged.filter=e.target.value;state.staged.page=0;
   const area=document.getElementById("structured-preview-table");
