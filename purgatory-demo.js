@@ -25,9 +25,12 @@ function matchedAlias(state,kind,raw,stationId){
   a.stationId===scope(kind,stationId)).map(a=>activeList(state,kind).find(x=>x.id===a.targetId)).filter(Boolean);
 }
 function findKnown(state,kind,raw,stationId){
- const known=[...matchesCanonical(state,kind,raw),...matchedAlias(state,kind,raw,stationId)];
- const distinct=Array.from(new Map(known.map(x=>[x.id,x])).values());
- return distinct.length===1?distinct[0]:null;
+ // A verified station-scoped settlement choice takes precedence over duplicate names.
+ const aliases=matchedAlias(state,kind,raw,stationId);
+ const byAlias=Array.from(new Map(aliases.map(x=>[x.id,x])).values());
+ if(byAlias.length)return byAlias.length===1?byAlias[0]:null;
+ const canonical=matchesCanonical(state,kind,raw);
+ return canonical.length===1?canonical[0]:null;
 }
 function seed(){
  return {
@@ -45,7 +48,7 @@ function seed(){
   {id:"i5",kind:"settlement",stationId:"s1",raw:"Клeнове",source:"Демо DOCX · рядок 3",status:"pending"},
   {id:"i6",kind:"settlement",stationId:"s2",raw:"Клeнове",source:"Демо XLSX · рядок 9",status:"pending"},
   {id:"i7",kind:"action",stationId:"",raw:"Уточненя",source:"Демо XLSX · рядок 5",status:"pending"}
- ],decisions:[],nextId:20,filter:"",kindFilter:"all",proposals:{}};
+ ],decisions:[],nextId:20,filter:"",kindFilter:"all",proposals:{},choices:{}};
 }
 function groups(state){
  const data=new Map();
@@ -117,7 +120,7 @@ function resolve(state,key,targetId,mode){
  if(mode==="group"&&conflict(state,group.kind,group.raw,target.id,group.stationId))throw Error("Аліас конфліктує з іншим активним значенням");
  const items=mode==="one"?[group.items[0]]:group.items;
  for(const issue of items){issue.status="verified";issue.targetId=target.id;issue.decision=mode==="one"?"Виняток для запису":"Підтверджено групу";}
- if(mode==="group"&&normal(group.raw)!==normal(target.name)){
+ if(mode==="group"&&(group.kind==="settlement"||normal(group.raw)!==normal(target.name))){
   const stationId=scope(group.kind,group.stationId),normalized=normal(group.raw);
   if(!state.aliases.some(a=>a.kind===group.kind&&a.normalized===normalized&&a.stationId===stationId&&a.targetId===target.id&&a.active)){
    state.aliases.push({kind:group.kind,normalized,raw:group.raw,stationId,targetId:target.id,active:true});
@@ -125,6 +128,7 @@ function resolve(state,key,targetId,mode){
  }
  state.decisions.unshift({kind:group.kind,raw:group.raw,target:target.name,count:items.length,mode});
  delete state.proposals[key];
+ delete state.choices[key];
  return {count:items.length,target:target.name,kind:group.kind};
 }
 function createCanonical(state,key,name){
@@ -154,12 +158,13 @@ function card(state,g){
  const ordered=[...suggested,...options.filter(x=>!found.has(x.id))];
  const diagnostic=diagnostics(state,g),candidate=state.proposals[g.key]||"";
  const selectId="pg-target-"+state.issues.indexOf(g.items[0]);
+ const selected=state.choices[g.key]||"";
  const desc=diagnostic.length?diagnostic.map(d=>"Позиція "+(d.index+1)+": «"+d.char+"» — "+d.reason+
   (d.replace?" (можливо, «"+d.replace+"»)":"")).join(" · "):
   "Невідома назва або орфографічна розбіжність. Остаточну відповідність обирає оператор.";
  const context=g.kind==="settlement"?(activeList(state,"station").find(x=>x.id===g.stationId)?.name||"Невідома станція"):"Без контексту станції";
  const btn=(label,act,extra)=>'<button class="btn tiny '+(act==="pg-confirm"?"primary":"")+'" data-action="'+act+'" data-pg-key="'+escape(g.key)+'" '+(extra||"")+'>'+label+'</button>';
- const choices=ordered.map((x,i)=>'<option value="'+escape(x.id)+'">'+escape(x.name)+
+ const choices=ordered.map((x,i)=>'<option value="'+escape(x.id)+'"'+(x.id===selected?' selected':'')+'>'+escape(x.name)+
   (x.detail?" · "+escape(x.detail):"")+(x.score!==undefined?" · підказка":"")+'</option>').join("");
  return '<article class="panel pg-card" data-pg-group="'+escape(g.key)+'">'+
   '<div class="panelhead"><div><span class="tag warn">'+escape(kindNames[g.kind])+'</span> '+
