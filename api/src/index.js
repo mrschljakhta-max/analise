@@ -1,3 +1,4 @@
+import { directoryApi } from "./directories.js";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { APP_HTML, APP_CSS, APP_JS } from "./app-assets.js";
 import { IMPORT_JS, IMPORT_CSS } from "./import-demo.js";
@@ -289,6 +290,7 @@ export default {
         await env.DB.prepare("SELECT 1 AS ok").first();
         return reply({ok:true,database:true,private_files:!!env.DOCUMENTS,files_enabled:env.FILE_UPLOAD_ENABLED==="true"});
       }
+      if(seg[1]==="directories")return await directoryApi(req,env,user,seg);
       if(seg[1]==="records")return await recordsApi(req,env,user,seg);
       if(seg[1]==="references")return await referencesApi(req,env,user,seg);
       if(seg[1]==="users"&&seg.length===2)return await usersApi(req,env,user);
