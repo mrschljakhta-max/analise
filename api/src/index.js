@@ -1,5 +1,6 @@
 import { STATION_IMPORT_HTML, STATION_IMPORT_CSS, STATION_IMPORT_JS } from "./station-import-assets.js";
 import { stationImportApi } from "./station-import-api.js";
+import { stationCompareApi } from "./station-compare-api.js";
 import { ORG_DIRECTORY_HTML, ORG_DIRECTORY_JS } from "./org-directory-assets.js";
 import { ORG_IMPORT_HTML, ORG_IMPORT_CSS, ORG_IMPORT_JS } from "./org-import-assets.js";
 import { orgApi } from "./org-directories.js";
@@ -287,6 +288,7 @@ export default {
         if(url.pathname==="/api/import.css")return appAsset(IMPORT_CSS,"text/css; charset=utf-8");
         return appAsset(APP_JS, "text/javascript; charset=utf-8");
       }
+      if (url.pathname === "/api/station-compare") return stationCompareApi(req, env, user);
       if (["/api/station-import","/api/station-import.js","/api/station-import.css"].includes(url.pathname)) {
         if(req.method!=="GET")return error(405,"Дозволено лише GET");
         if(user.role!=="admin")return error(403,"Лише адміністратор");
