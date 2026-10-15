@@ -1,3 +1,4 @@
+import { stationImportApi } from "./station-import-api.js";
 import { ORG_DIRECTORY_HTML, ORG_DIRECTORY_JS } from "./org-directory-assets.js";
 import { ORG_IMPORT_HTML, ORG_IMPORT_CSS, ORG_IMPORT_JS } from "./org-import-assets.js";
 import { orgApi } from "./org-directories.js";
@@ -326,6 +327,7 @@ export default {
         await env.DB.prepare("SELECT 1 AS ok").first();
         return reply({ok:true,database:true,private_files:!!env.DOCUMENTS,files_enabled:env.FILE_UPLOAD_ENABLED==="true"});
       }
+      if(seg[1]==="station-import")return await stationImportApi(req,user,seg);
       if(seg[1]==="org-directories")return await orgApi(req,env,user,seg);
       if(seg[1]==="directories")return await directoryApi(req,env,user,seg);
       if(seg[1]==="records")return await recordsApi(req,env,user,seg);
