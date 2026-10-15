@@ -1,3 +1,4 @@
+import { DIRECTORY_VIEW_HTML, DIRECTORY_VIEW_JS } from "./directory-view-assets.js";
 import { DIRECTORY_IMPORT_HTML, DIRECTORY_IMPORT_CSS, DIRECTORY_IMPORT_JS } from "./directory-import-assets.js";
 import { directoryApi } from "./directories.js";
 import { createRemoteJWKSet, jwtVerify } from "jose";
@@ -278,6 +279,11 @@ export default {
         if(url.pathname==="/api/import.js")return appAsset(IMPORT_JS,"text/javascript; charset=utf-8");
         if(url.pathname==="/api/import.css")return appAsset(IMPORT_CSS,"text/css; charset=utf-8");
         return appAsset(APP_JS, "text/javascript; charset=utf-8");
+      }
+      if (url.pathname === "/api/directory-view" || url.pathname === "/api/directory-view.js") {
+        if (req.method !== "GET") return error(405,"Дозволено лише GET");
+        return appAsset(url.pathname.endsWith(".js") ? DIRECTORY_VIEW_JS : DIRECTORY_VIEW_HTML,
+          url.pathname.endsWith(".js") ? "text/javascript; charset=utf-8" : "text/html; charset=utf-8");
       }
       if (["/api/directory-import","/api/directory-import.js","/api/directory-import.css"].includes(url.pathname)) {
         if(req.method!=="GET")return error(405,"Дозволено лише GET");
