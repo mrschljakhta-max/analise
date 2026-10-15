@@ -1,3 +1,4 @@
+import { STATION_IMPORT_HTML, STATION_IMPORT_CSS, STATION_IMPORT_JS } from "./station-import-assets.js";
 import { stationImportApi } from "./station-import-api.js";
 import { ORG_DIRECTORY_HTML, ORG_DIRECTORY_JS } from "./org-directory-assets.js";
 import { ORG_IMPORT_HTML, ORG_IMPORT_CSS, ORG_IMPORT_JS } from "./org-import-assets.js";
@@ -285,6 +286,13 @@ export default {
         if(url.pathname==="/api/import.js")return appAsset(IMPORT_JS,"text/javascript; charset=utf-8");
         if(url.pathname==="/api/import.css")return appAsset(IMPORT_CSS,"text/css; charset=utf-8");
         return appAsset(APP_JS, "text/javascript; charset=utf-8");
+      }
+      if (["/api/station-import","/api/station-import.js","/api/station-import.css"].includes(url.pathname)) {
+        if(req.method!=="GET")return error(405,"Дозволено лише GET");
+        if(user.role!=="admin")return error(403,"Лише адміністратор");
+        if(url.pathname==="/api/station-import")return appAsset(STATION_IMPORT_HTML,"text/html; charset=utf-8");
+        if(url.pathname==="/api/station-import.js")return appAsset(STATION_IMPORT_JS,"text/javascript; charset=utf-8");
+        return appAsset(STATION_IMPORT_CSS,"text/css; charset=utf-8");
       }
       if (url.pathname === "/api/org-directory" || url.pathname === "/api/org-directory.js") {
         if (req.method !== "GET") return error(405, "Дозволено лише GET");
