@@ -5,7 +5,9 @@ const timestamp=()=>new Date().toISOString();
 async function bodyJson(req){
   if(!(req.headers.get("content-type")||"").startsWith("application/json"))throw Error("Очікується JSON");
   const s=await req.text();if(new TextEncoder().encode(s).length>65536)throw Error("Завеликий запит");
-  return JSON.parse(s);
+  const value=JSON.parse(s);
+  if(!value||typeof value!=="object"||Array.isArray(value))throw Error("Некоректний JSON-об’єкт");
+  return value;
 }
 export function validate(schema, data){
  if(!data||typeof data!=="object"||Array.isArray(data))throw Error("Некоректний запис");
