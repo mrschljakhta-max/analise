@@ -59,7 +59,7 @@ table{border-collapse:collapse;width:100%;font-size:12px;text-align:left}th{padd
    <button data-view="admin"><span class="ico">⚙</span> Налаштування</button>
    <button data-view="maps" class="later"><span class="ico">⌖</span> Карти · пізніше</button>
   </nav>
-  <div class="sidefoot"><div class="secure"><span class="statusdot"></span> Режим демонстрації</div><div class="note">ТЗ 0.2 · Перша реалізація<br>Без підключення до службових даних</div></div>
+  <div class="sidefoot"><div class="secure"><span class="statusdot"></span> Режим демонстрації</div><div class="note">ASTRA 3.0 · Поетапний розвиток<br>Без підключення до службових даних</div></div>
 </aside>
 <div class="main">
  <header class="topbar"><div class="breadcrumbs">Робочий простір <span class="muted"> / </span><b id="crumb">Огляд</b></div><div class="topactions"><span class="pill"><b>●</b> TEST ENVIRONMENT</span><div class="topuser"><div class="avatar">Д</div><span id="user-label">Черговий · демо</span></div></div></header>
@@ -71,6 +71,7 @@ table{border-collapse:collapse;width:100%;font-size:12px;text-align:left}th{padd
 </div>
 <div id="modal-root"></div><div id="toast-root"></div><div id="print-area"></div>
 <script src="./template-import.js?v=20261014-1"></script>
+<script src="./report-versions.js?v=20261015-1"></script>
 <script>
 "use strict";
 (function(){
@@ -93,7 +94,7 @@ function header(eyebrow,title,subtitle,buttons){return '<div class="pagehead"><d
 function rows(){return state.records.filter(function(r){return !r.deleted})}
 function stat(label,num,hint,ico,hl){return '<div class="stat '+(hl?"highlight":"")+'"><div class="label">'+esc(label)+'</div><div class="sico">'+ico+'</div><div class="value">'+esc(num)+'</div><div class="hint">'+esc(hint)+'</div></div>'}
 function shortDate(s){return stamp(s).slice(0,16).replace(/-/g,".")}
-function tag(s){var m={new:"good",same:"info",update:"warn",error:"bad",conflict:"bad",skipped:"info",done:"good",checked:"info"};var names={new:"Новий",same:"Збіг",update:"Оновлення",error:"Помилка",conflict:"Конфлікт",skipped:"Пропущено",done:"Завершено",checked:"Перевірено"};return '<span class="tag '+(m[s]||"")+'">'+esc(names[s]||s)+'</span>'}
+function tag(s){var m={new:"good",same:"info",update:"warn",error:"bad",conflict:"bad",skipped:"info",done:"good",checked:"good",superseded:"info"};var names={new:"Новий",same:"Збіг",update:"Оновлення",error:"Помилка",conflict:"Конфлікт",skipped:"Пропущено",done:"Завершено",checked:"Актуальна версія",superseded:"Попередня версія"};return '<span class="tag '+(m[s]||"")+'">'+esc(names[s]||s)+'</span>'}
 function nav(to){if(to==="maps"){toast("Карти перенесені за межі першої версії згідно з ТЗ 0.2");return}state.view=to;state.search="";render();window.scrollTo(0,0)}
 document.getElementById("nav").addEventListener("click",function(e){var b=e.target.closest("[data-view]");if(b)nav(b.dataset.view)});
 function render(){document.getElementById("crumb").textContent=views[state.view];document.getElementById("user-label").textContent=state.role==="admin"?"Адміністратор · демо":"Черговий · демо";document.querySelectorAll("#nav button").forEach(function(b){b.classList.toggle("active",b.dataset.view===state.view)});var m={overview:overview,imports:importsView,records:recordsView,references:refsView,reports:reportsView,audit:auditView,admin:adminView};node.innerHTML=m[state.view]();}
@@ -110,7 +111,9 @@ function recordsView(){
 var data=rows().filter(function(r){var q=state.search.toLowerCase();return (!q||[r.code,r.note,r.source,r.category].join(" ").toLowerCase().includes(q))&&(state.srcfilter==="all"||r.source===state.srcfilter)&&(state.catfilter==="all"||r.category===state.catfilter)});
 return header("РЕЄСТР ДАНИХ","Журнал записів","Синтетичні події, ручне редагування та контроль версій у межах демонстраційної сесії.",btn("＋ Створити запис","primary",'data-action="add-record"'))+
 '<div class="panel"><div class="panelhead"><h2>Записи <span class="muted">('+data.length+')</span></h2><span class="tag info">Зміни не зберігаються після перезавантаження</span></div><div class="filt"><input id="filter-query" class="field" placeholder="Пошук за кодом, джерелом, приміткою…" value="'+esc(state.search)+'"><select id="filter-src"><option value="all">Усі джерела</option>'+state.refs.source.map(function(s){return '<option '+(s===state.srcfilter?"selected":"")+'>'+esc(s)+'</option>'}).join("")+'</select><select id="filter-cat"><option value="all">Усі категорії</option>'+state.refs.category.map(function(s){return '<option '+(s===state.catfilter?"selected":"")+'>'+esc(s)+'</option>'}).join("")+'</select></div><div id="record-results">'+recordTable(data,true)+'</div></div>'}
-function fileStatus(f){return '<tr><td><b>'+esc(f.name)+'</b><div class="hintline">'+esc(f.date)+'</div></td><td>'+esc(f.kind)+'</td><td>'+tag(f.status)+'</td><td>'+esc(f.message)+'</td></tr>'}
+function fileStatus(f){return '<tr><td><b>'+esc(f.name)+'</b><div class="hintline">'+esc(f.date)+
+ (f.structured?' · Звітна доба: '+esc(f.reportDay)+' · Версія №'+esc(f.version):'')+
+ '</div></td><td>'+esc(f.kind)+'</td><td>'+tag(f.status)+'</td><td>'+esc(f.message)+'</td></tr>'}
 function importsView(){
 var st=state.staged;
 return header("ЦЕНТР ІМПОРТУ","Завантаження і перевірка","Перевіряй тестові документи перед внесенням до журналу. Підтримуються погоджений Excel «Запити» (30 колонок), Word 3.2 (4 колонки) та навчальні приклади.",btn("↓ Зразок XLSX","",'data-action="sample-xlsx"')+btn("↓ Зразок DOCX","",'data-action="sample-docx"'))+
@@ -180,7 +183,7 @@ async function importFile(file){
    if(!normalized.records.length)throw Error("У погодженому шаблоні немає рядків для перегляду");
    const hash=await sha(await file.arrayBuffer());
    state.staged={structured:true,name:file.name,ext:extension,hash,parsed:structured,
-     structuredData:normalized,page:0,filter:"",showOriginal:false,duplicate:false,confirmed:false};
+     structuredData:normalized,page:0,filter:"",showOriginal:false,reportDay:"",duplicate:false,confirmed:false};
    nav("imports");
    toast("Структуру розпізнано: "+normalized.records.length+" рядків");
    return;
@@ -231,40 +234,62 @@ function structuredTable(st){
    btn("Далі →","",'data-action="structured-next" '+(st.page>=pages-1?"disabled":""))+'</div>';
 }
 function structuredPreview(st){
- const data=st.structuredData,rows=data.records||[],errors=rows.filter(function(r){return r.problems?.length}).length,
-   word=data.kind==="word",warnings=data.warnings||[];
- const duplicate=state.imports.some(function(i){return i.hash===st.hash&&i.status==="checked"});
- const warnHtml=warnings.length?'<div class="banner"><strong>Попередження:</strong> '+
-   warnings.slice(0,8).map(esc).join(" · ")+'</div>':"";
- return '<div class="panel"><div class="panelhead"><div><h2>Структурний перегляд: '+esc(st.name)+'</h2>'+
-   '<p class="paneldesc">'+esc(st.parsed.profile)+' · Без передачі файлу на сервер</p></div><span class="tag good">Розпізнано</span></div>'+
-   '<div class="recordmeta"><span>Рядків: '+rows.length+'</span><span>Колонок джерела: '+st.parsed.columns+
-   '</span><span class="'+(errors?"badtext":"")+'">Потрібна перевірка: '+errors+'</span></div>'+
-   warnHtml+(duplicate?'<div class="banner">Той самий файл уже перевірявся в цій сесії.</div>':"")+
-   (word?'<p class="footnote">Дата і час та азимут і населений пункт розділені; назва станції визначається з об’єднаного рядка. Оригінальні дані доступні для звіряння.</p>':
-     '<p class="footnote">Excel: 30 колонок еталонного аркуша «Запити», числові значення часу показані як ГГ:ХХ; жодні вихідні клітинки не змінено.</p>')+
-   '<div class="filt"><input type="search" id="structured-search" class="field" placeholder="Пошук у перегляді…" value="'+esc(st.filter||"")+'">'+
-   (word?btn(st.showOriginal?"Показати розділені поля":"Показати оригінал","",'data-action="structured-original"'):"")+'</div>'+
-   '<div id="structured-preview-table">'+structuredTable(st)+'</div>'+
-   '<div class="actions" style="margin-top:18px">'+
-   btn("✓ Завершити локальну перевірку","primary",(errors||duplicate)?'disabled':'data-action="structured-confirm"')+
-   btn("Скасувати","quiet",'data-action="cancel-import"')+'</div>'+
-   '<p class="footnote">Це локальна перевірка структури, а не імпорт у серверну базу. Поточний деможурнал на цьому сайті використовує іншу навчальну схему.</p></div>';
+  const data=st.structuredData,records=data.records||[];
+  const errors=records.filter(function(r){return r.problems?.length}).length;
+  const word=data.kind==="word",warnings=data.warnings||[];
+  const versions=window.ASTRA_REPORT_VERSIONS;
+  const plan=versions.plan(state.imports,{sourceKind:data.kind,reportDay:st.reportDay,hash:st.hash});
+  const warnHtml=warnings.length?'<div class="banner"><strong>Попередження:</strong> '+
+    warnings.slice(0,8).map(esc).join(" · ")+'</div>':"";
+  const versionInfo=!plan.valid?'<p class="hintline">Спочатку вручну обери дату завершення звітної доби.</p>':
+    plan.duplicate?'<div class="banner">Цей самий файл уже реєстрували в цій сесії як версію за '+esc(plan.duplicate.reportDay)+'. Повтор заблоковано.</div>':
+    plan.previous?'<div class="banner">За '+esc(st.reportDay)+' вже є версія №'+plan.previous.version+
+      '. Після підтвердження її буде позначено як попередню; нова версія №'+plan.version+' стане актуальною.</div>':
+    '<p class="hintline">Буде створено першу версію документа за '+esc(st.reportDay)+'.</p>';
+  return '<div class="panel"><div class="panelhead"><div><h2>Структурний перегляд: '+esc(st.name)+'</h2>'+
+    '<p class="paneldesc">'+esc(st.parsed.profile)+' · Локальна демосесія, без сервера</p></div><span class="tag good">Розпізнано</span></div>'+
+    '<div class="recordmeta"><span>Рядків: '+records.length+'</span><span>Колонок джерела: '+st.parsed.columns+
+    '</span><span class="'+(errors?"badtext":"")+'">Потребують перевірки: '+errors+'</span></div>'+
+    '<div class="panel" style="margin:16px 0;padding:17px"><div class="formgroup">'+
+    '<label for="structured-report-day">Звітна доба — дата завершення періоду *</label>'+
+    '<input id="structured-report-day" type="date" required value="'+esc(st.reportDay||"")+'" style="max-width:235px">'+
+    '<p class="hintline">Вводиться вручну. Межі на кшталт 15:00 чи 18:00 не перевіряються і не припускаються автоматично.</p>'+
+    '</div>'+versionInfo+'</div>'+
+    warnHtml+
+    (errors?'<div class="banner">Виявлено '+errors+' рядків із зауваженнями. Вони не блокують реєстрацію версії, але не є підтвердженими. У демоверсії зберігається лише їхня кількість; повне «Чистилище» буде окремим модулем.</div>':"")+
+    (word?'<p class="footnote">Дата й час та азимут і населений пункт розділені; вихідні значення можна переглянути.</p>':
+      '<p class="footnote">Excel: 30 колонок еталонного аркуша «Запити»; вихідні клітинки не змінюються.</p>')+
+    '<div class="filt"><input type="search" id="structured-search" class="field" placeholder="Пошук у перегляді…" value="'+esc(st.filter||"")+'">'+
+    (word?btn(st.showOriginal?"Показати розділені поля":"Показати оригінал","",'data-action="structured-original"'):"")+'</div>'+
+    '<div id="structured-preview-table">'+structuredTable(st)+'</div>'+
+    '<div class="actions" style="margin-top:18px">'+
+    btn("✓ Зареєструвати версію (демо)","primary",(!plan.valid||plan.duplicate)?'disabled':'data-action="structured-confirm"')+
+    btn("Скасувати","quiet",'data-action="cancel-import"')+'</div>'+
+    '<p class="footnote">Облік версій діє лише до перезавантаження сторінки. Файли, рядки й рішення не записуються в D1 або серверний RAW-архів. Демонстраційний журнал використовує окрему навчальну схему.</p></div>';
 }
 function confirmStructured(){
- const st=state.staged;
- if(!st||!st.structured)return;
- if(st.structuredData.records.some(function(r){return r.problems?.length})){
-   toast("Є рядки, які потрібно перевірити вручну");return;
- }
- if(state.imports.some(function(i){return i.hash===st.hash&&i.status==="checked"})){
-   toast("Цей файл уже перевіряли");return;
- }
- state.imports.unshift({name:st.name,kind:st.ext.toUpperCase(),status:"checked",
-   message:"Локально перевірено "+st.structuredData.records.length+" записів; D1 не змінено",
-   date:now(),hash:st.hash});
- audit("Перевірено структуру",st.name+" · "+st.structuredData.records.length+" рядків");
- state.staged=null;render();toast("Перевірка завершена, дані на сервер не передавались");
+  const st=state.staged;
+  if(!st||!st.structured)return;
+  const versioning=window.ASTRA_REPORT_VERSIONS;
+  const decision=versioning.plan(state.imports,{sourceKind:st.structuredData.kind,reportDay:st.reportDay,hash:st.hash});
+  if(!decision.valid){toast("Спочатку вкажи коректну звітну дату");return;}
+  if(decision.duplicate){toast("Цей файл уже зареєстровано");return;}
+  if(decision.previous&&!confirm("Зареєструвати версію №"+decision.version+" за "+st.reportDay+
+    " замість поточної версії №"+decision.previous.version+"? Усі зміни залишаться лише в демосесії."))return;
+  const reviewCount=st.structuredData.records.filter(function(r){return r.problems?.length}).length;
+  const batch={
+    name:st.name,kind:st.ext.toUpperCase(),sourceKind:st.structuredData.kind,
+    reportDay:st.reportDay,rowCount:st.structuredData.records.length,reviewCount:reviewCount,
+    message:"Локальна версія: "+st.structuredData.records.length+" рядків · "+reviewCount+
+      " потребують перевірки. Без серверного збереження.",
+    date:now(),hash:st.hash
+  };
+  const result=versioning.accept(state.imports,batch);
+  state.imports=result.entries;
+  audit("Версія добового документа",st.structuredData.kind.toUpperCase()+" · "+st.reportDay+
+    " · №"+result.current.version+" · "+reviewCount+" неперевірених");
+  state.staged=null;render();
+  toast("Версію №"+result.current.version+" зареєстровано тільки в поточній сесії");
 }
 
 function confirmImport(){var st=state.staged;if(!st)return;if(st.duplicate||st.lines.some(function(l){return l.status==="error"||l.status==="conflict"})){toast("Спочатку усунь помилки");return}
@@ -290,7 +315,8 @@ if(act==="export-docx"&&state.report)download(buildDocx(state.report.items),"ana
 if(act==="print-report")printReport()
 }catch(err){toast("Помилка: "+err.message)}});
 node.addEventListener("change",async function(e){var t=e.target;if(t.id==="file-input"){var f=t.files&&t.files[0];if(!f)return;try{await importFile(f)}catch(err){state.importError=err.message;render();toast("Не вдалося розібрати: "+err.message)}finally{t.value=""}}
-if(t.id==="filter-src"){state.srcfilter=t.value;render()}if(t.id==="filter-cat"){state.catfilter=t.value;render()}if(t.id==="report-day"){state.day=t.value;render()}});
+if(t.id==="structured-report-day"&&state.staged?.structured){state.staged.reportDay=t.value;render()}
+ if(t.id==="filter-src"){state.srcfilter=t.value;render()}if(t.id==="filter-cat"){state.catfilter=t.value;render()}if(t.id==="report-day"){state.day=t.value;render()}});
 node.addEventListener("input",function(e){
 if(e.target.id==="structured-search"&&state.staged?.structured){
   state.staged.filter=e.target.value;state.staged.page=0;
