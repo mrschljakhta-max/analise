@@ -1,0 +1,34 @@
+name: ANALISE browser demo checks
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'template-import.js'
+      - 'report-versions.js'
+      - 'tests/**'
+      - '.github/workflows/analise-checks.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'template-import.js'
+      - 'report-versions.js'
+      - 'tests/**'
+      - '.github/workflows/analise-checks.yml'
+permissions:
+  contents: read
+jobs:
+  client-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify JavaScript syntax
+        run: |
+          node --check report-versions.js
+          node --check template-import.js
+          node -e "const fs=require('fs');const html=fs.readFileSync('index.html','utf8');const matches=[...html.matchAll(/<script(?:\\s[^>]*)?>([\\s\\S]*?)<\\/script>/g)];if(!matches.length)throw Error('Inline script not found');for(const match of matches)new Function(match[1]);"
+      - name: Test day and revision logic
+        run: node --test tests/*.test.cjs
