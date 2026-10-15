@@ -166,12 +166,19 @@ function card(state,g){
  const btn=(label,act,extra)=>'<button class="btn tiny '+(act==="pg-confirm"?"primary":"")+'" data-action="'+act+'" data-pg-key="'+escape(g.key)+'" '+(extra||"")+'>'+label+'</button>';
  const choices=ordered.map((x,i)=>'<option value="'+escape(x.id)+'"'+(x.id===selected?' selected':'')+'>'+escape(x.name)+
   (x.detail?" · "+escape(x.detail):"")+(x.score!==undefined?" · підказка":"")+'</option>').join("");
+ const shortHints=suggested.slice(0,3).map((item,i)=>'<button type="button" class="pg-hint-btn'+(item.id===selected?' selected':'')+
+  '" data-action="pg-choose" data-pg-key="'+escape(g.key)+'" data-pg-target="'+escape(item.id)+'">'+
+  (i===0?'★ ':'')+escape(item.name)+(item.detail?' · '+escape(item.detail):'')+'</button>').join("");
+ const hints=shortHints?'<div class="pg-recommend"><div class="pg-recommend-heading">Схожі назви з довідника <span>Натисни, щоб вибрати</span></div>'+
+  '<div class="pg-recommend-list">'+shortHints+'</div>'+
+  '<p>Вибір підказки не підтверджує значення автоматично.</p></div>':'';
  return '<article class="panel pg-card" data-pg-group="'+escape(g.key)+'">'+
   '<div class="panelhead"><div><span class="tag warn">'+escape(kindNames[g.kind])+'</span> '+
   '<span class="tag">'+g.items.length+' входж.</span></div><span class="muted">'+escape(context)+'</span></div>'+
   '<div class="pg-value">'+highlighted(state,g)+'</div>'+
   '<p class="paneldesc">'+escape(desc)+'</p>'+
-  (candidate?'<div class="pg-suggestion">Запропоноване виправлення: <strong>'+escape(candidate)+'</strong></div>':"")+
+  (candidate?'<div class="pg-suggestion"><span>Після заміни символів:</span> <strong>'+escape(candidate)+'</strong> <span>· потрібне підтвердження</span></div>':"")+
+  hints+
   '<div class="pg-fields"><label class="formgroup"><span>Підтверджена відповідність</span><select id="'+selectId+'" class="pg-target" data-pg-key="'+escape(g.key)+'">'+
   '<option value="">— Обрати зі словника —</option>'+choices+'</select></label>'+
   '<label class="formgroup"><span>Нова назва (за потреби)</span><input type="text" class="pg-new-name" data-pg-key="'+escape(g.key)+'" placeholder="Створити новий запис…" maxlength="100"></label></div>'+
@@ -197,7 +204,7 @@ function view(state){
   '<div class="panel"><div class="panelhead"><h2>Додати синтетичний приклад</h2><span class="tag info">Без файлів</span></div>'+
   '<div class="pg-add-grid"><label class="formgroup"><span>Поле</span><select id="pg-kind"><option value="station">Станція</option><option value="settlement">Населений пункт</option><option value="action">Тип дії</option></select></label>'+
   '<label class="formgroup"><span>Значення</span><input id="pg-raw" maxlength="100" placeholder="Наприклад, CОКІЛ"></label>'+
-  '<label class="formgroup"><span>Контекст для населеного пункту</span><select id="pg-station">'+activeList(state,"station").map(s=>'<option value="'+escape(s.id)+'">'+escape(s.name)+'</option>').join("")+'</select></label>'+
+  '<label class="formgroup hidden" id="pg-station-context"><span>Контекст для населеного пункту</span><select id="pg-station" disabled>'+activeList(state,"station").map(s=>'<option value="'+escape(s.id)+'">'+escape(s.name)+'</option>').join("")+'</select></label>'+
   '<button class="btn primary" data-action="pg-add">Додати до перевірки</button></div>'+
   '<p class="footnote">Не вводь службову інформацію. Порожнє поле не створює завдання.</p></div>'+
   '<div class="panel"><div class="panelhead"><h2>Завдання перевірки</h2><span class="tag">'+filtered.length+' груп</span></div>'+
