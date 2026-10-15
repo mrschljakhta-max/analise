@@ -61,7 +61,7 @@ export async function directoryApi(req,env,user,seg){
     const seen=new Set();
     rows.forEach((row,i)=>{
      if(!row||typeof row!=="object")return;
-     const key=["name","type","community","district","region"].map(k=>String(row[k]??"").trim().toLocaleLowerCase("uk")).join("\\u0000");
+     const key=["name","type","community","district","region","mgrs","lat","lon"].map(k=>String(row[k]??"").trim().toLocaleLowerCase("uk")).join("\\u0000");
      if(seen.has(key))errors.push({row:i+1,message:"Повторення запису в пакеті"});
      seen.add(key);
     });
