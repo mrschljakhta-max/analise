@@ -71,11 +71,12 @@ export async function directoryApi(req,env,user,seg){
    const at=timestamp(),batch=[];
    for(const data of normalized){
     const id=crypto.randomUUID(),json=JSON.stringify(data);
-    batch.push(env.DB.prepare("INSERT INTO directory_entries(id,directory_id,data_json,created_by,updated_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?)").bind(id,dir,json,user.id,user.id,at,at));
-    batch.push(env.DB.prepare("INSERT INTO directory_entry_audit(entry_id,directory_id,action,actor_id,new_json,at) VALUES (?,?,?,?,?,?)").bind(id,dir,"create",user.id,json,at));
+    batch.push(env.DB.prepare("INSERT OR IGNORE INTO directory_entries(id,directory_id,data_json,created_by,updated_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?)").bind(id,dir,json,user.id,user.id,at,at));
+    batch.push(env.DB.prepare("INSERT INTO directory_entry_audit(entry_id,directory_id,action,actor_id,new_json,at) SELECT id,directory_id,?,?,data_json,? FROM directory_entries WHERE id=?").bind("create",user.id,at,id));
    }
-   await env.DB.batch(batch);
-   return respond({created:rows.length},201);
+   const result=await env.DB.batch(batch);
+   const created=result.filter((_,i)=>i%2===0).reduce((n,r)=>n+(r.meta?.changes||0),0);
+   return respond({created,skipped:rows.length-created},201);
   }
   if(seg.length===4&&method==="POST"){
    if(user.role!=="admin")return fail(403,"Лише адміністратор");
