@@ -17,6 +17,12 @@ function validate(schema, data){
    if(v!==undefined&&v!==null&&!(typeof v==="string"||typeof v==="number"))throw Error("Неприпустимий тип: "+f.key);
    if(typeof v==="string"&&v.length>500)throw Error("Завелике значення: "+f.key);
  }
+ if(schema.fields.some(f=>f.key==="lat") && schema.fields.some(f=>f.key==="lon")){
+   const lat=data.lat,lon=data.lon;
+   if((lat==null||lat==="") !== (lon==null||lon===""))throw Error("Широта і довгота повинні бути заповнені разом");
+   if(lat!=null&&lat!==""&&(!Number.isFinite(Number(lat))||Number(lat)<-90||Number(lat)>90))throw Error("Некоректна широта");
+   if(lon!=null&&lon!==""&&(!Number.isFinite(Number(lon))||Number(lon)<-180||Number(lon)>180))throw Error("Некоректна довгота");
+ }
  return JSON.stringify(data);
 }
 export async function directoryApi(req,env,user,seg){
@@ -45,6 +51,15 @@ export async function directoryApi(req,env,user,seg){
    for(let i=0;i<rows.length;i++){
     try{normalized.push(JSON.parse(validate(schema,rows[i])));}
     catch(e){errors.push({row:i+1,message:e.message});}
+   }
+   if(dir==="settlements"){
+    const seen=new Set();
+    rows.forEach((row,i)=>{
+     if(!row||typeof row!=="object")return;
+     const key=["name","type","community","district","region"].map(k=>String(row[k]??"").trim().toLocaleLowerCase("uk")).join("\\u0000");
+     if(seen.has(key))errors.push({row:i+1,message:"Повторення запису в пакеті"});
+     seen.add(key);
+    });
    }
    if(seg[4]==="preview")return respond({valid:errors.length===0,count:rows.length,errors});
    if(errors.length)return respond({error:"Помилки валідації",errors},400);
@@ -85,6 +100,7 @@ export async function directoryApi(req,env,user,seg){
  }catch(e){
   if(e instanceof SyntaxError||/^(Очікується|Завеликий|Некоректний|Невідомі|Обов'язкове|Неприпустимий)/.test(e.message))return fail(400,e.message);
   if(e.message.startsWith("Пакет"))return fail(400,e.message);
+  if(/UNIQUE constraint failed/.test(String(e.message)))return fail(409,"Такий запис уже існує");
   return fail(500,"Помилка сервера");
  }
 }
