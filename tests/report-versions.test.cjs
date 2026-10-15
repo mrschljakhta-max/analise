@@ -3,7 +3,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { validDay, plan, accept } = require("../report-versions.js");
+const { validDay, todayKyiv, plan, accept } = require("../report-versions.js");
 
 function report(sourceKind, reportDay, hash) {
   return { name: "synthetic." + (sourceKind === "excel" ? "xlsx" : "docx"),
@@ -64,4 +64,20 @@ test("existing ANALISE page includes manual date and version library", () => {
   assert.match(html, /report-versions\.js/);
   assert.match(html, /id="structured-report-day"/);
   assert.match(html, /state\.staged\.reportDay=t\.value/);
+});
+
+test("default date follows Kyiv midnight rather than UTC", () => {
+  assert.equal(todayKyiv(new Date("2026-10-14T20:59:59Z")), "2026-10-14");
+  assert.equal(todayKyiv(new Date("2026-10-14T21:00:00Z")), "2026-10-15");
+  assert.equal(todayKyiv(new Date("2026-12-31T21:59:59Z")), "2026-12-31");
+  assert.equal(todayKyiv(new Date("2026-12-31T22:00:00Z")), "2027-01-01");
+});
+
+test("import and export suggest current date without locking manual choices", () => {
+  const html = fs.readFileSync(path.join(__dirname, "../index.html"), "utf8");
+  assert.match(html, /reportDay:window\.ASTRA_REPORT_VERSIONS\.todayKyiv\(\)/);
+  assert.match(html, /day:window\.ASTRA_REPORT_VERSIONS\.todayKyiv\(\),reportDateEdited:false/);
+  assert.match(html, /state\.staged\.reportDay=t\.value/);
+  assert.match(html, /state\.day=t\.value;state\.reportDateEdited=true/);
+  assert.match(html, /to==="reports"&&!state\.reportDateEdited/);
 });

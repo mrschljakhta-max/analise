@@ -71,7 +71,7 @@ table{border-collapse:collapse;width:100%;font-size:12px;text-align:left}th{padd
 </div>
 <div id="modal-root"></div><div id="toast-root"></div><div id="print-area"></div>
 <script src="./template-import.js?v=20261014-1"></script>
-<script src="./report-versions.js?v=20261015-1"></script>
+<script src="./report-versions.js?v=20261015-2"></script>
 <script>
 "use strict";
 (function(){
@@ -80,7 +80,7 @@ var state={view:"overview",role:"duty",records:[
 {id:"R2",source:"Джерело А",code:"T002",at:"2026-10-12T23:50:00",category:"Облік",note:"Пакет 2",version:1,author:"Демо",deleted:false},
 {id:"R3",source:"Джерело Б",code:"T001",at:"2026-10-13T00:10:00",category:"Архів",note:"Пакет 3",version:1,author:"Демо",deleted:false},
 {id:"R4",source:"Джерело Б",code:"T002",at:"2026-10-13T14:59:59",category:"Облік",note:"Пакет 4",version:1,author:"Демо",deleted:false}
-],refs:{source:["Джерело А","Джерело Б"],category:["Архів","Облік"]},imports:[],staged:null,importError:"",report:null,reports:[],audit:[],search:"",srcfilter:"all",catfilter:"all",day:"2026-10-13"};
+],refs:{source:["Джерело А","Джерело Б"],category:["Архів","Облік"]},imports:[],staged:null,importError:"",report:null,reports:[],audit:[],search:"",srcfilter:"all",catfilter:"all",day:window.ASTRA_REPORT_VERSIONS.todayKyiv(),reportDateEdited:false};
 var views={overview:"Огляд",imports:"Завантаження",records:"Журнали",references:"Довідники",reports:"Звіти та експорт",audit:"Історія змін",admin:"Налаштування",maps:"Карти"};
 var node=document.getElementById("view");
 function esc(s){return String(s===undefined||s===null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;")}
@@ -95,7 +95,7 @@ function rows(){return state.records.filter(function(r){return !r.deleted})}
 function stat(label,num,hint,ico,hl){return '<div class="stat '+(hl?"highlight":"")+'"><div class="label">'+esc(label)+'</div><div class="sico">'+ico+'</div><div class="value">'+esc(num)+'</div><div class="hint">'+esc(hint)+'</div></div>'}
 function shortDate(s){return stamp(s).slice(0,16).replace(/-/g,".")}
 function tag(s){var m={new:"good",same:"info",update:"warn",error:"bad",conflict:"bad",skipped:"info",done:"good",checked:"good",superseded:"info"};var names={new:"Новий",same:"Збіг",update:"Оновлення",error:"Помилка",conflict:"Конфлікт",skipped:"Пропущено",done:"Завершено",checked:"Актуальна версія",superseded:"Попередня версія"};return '<span class="tag '+(m[s]||"")+'">'+esc(names[s]||s)+'</span>'}
-function nav(to){if(to==="maps"){toast("Карти перенесені за межі першої версії згідно з ТЗ 0.2");return}state.view=to;state.search="";render();window.scrollTo(0,0)}
+function nav(to){if(to==="maps"){toast("Карти перенесені за межі першої версії згідно з ТЗ 0.2");return}if(to==="reports"&&!state.reportDateEdited)state.day=window.ASTRA_REPORT_VERSIONS.todayKyiv();state.view=to;state.search="";render();window.scrollTo(0,0)}
 document.getElementById("nav").addEventListener("click",function(e){var b=e.target.closest("[data-view]");if(b)nav(b.dataset.view)});
 function render(){document.getElementById("crumb").textContent=views[state.view];document.getElementById("user-label").textContent=state.role==="admin"?"Адміністратор · демо":"Черговий · демо";document.querySelectorAll("#nav button").forEach(function(b){b.classList.toggle("active",b.dataset.view===state.view)});var m={overview:overview,imports:importsView,records:recordsView,references:refsView,reports:reportsView,audit:auditView,admin:adminView};node.innerHTML=m[state.view]();}
 function overview(){
@@ -183,7 +183,7 @@ async function importFile(file){
    if(!normalized.records.length)throw Error("У погодженому шаблоні немає рядків для перегляду");
    const hash=await sha(await file.arrayBuffer());
    state.staged={structured:true,name:file.name,ext:extension,hash,parsed:structured,
-     structuredData:normalized,page:0,filter:"",showOriginal:false,reportDay:"",duplicate:false,confirmed:false};
+     structuredData:normalized,page:0,filter:"",showOriginal:false,reportDay:window.ASTRA_REPORT_VERSIONS.todayKyiv(),duplicate:false,confirmed:false};
    nav("imports");
    toast("Структуру розпізнано: "+normalized.records.length+" рядків");
    return;
@@ -241,7 +241,7 @@ function structuredPreview(st){
   const plan=versions.plan(state.imports,{sourceKind:data.kind,reportDay:st.reportDay,hash:st.hash});
   const warnHtml=warnings.length?'<div class="banner"><strong>Попередження:</strong> '+
     warnings.slice(0,8).map(esc).join(" · ")+'</div>':"";
-  const versionInfo=!plan.valid?'<p class="hintline">Спочатку вручну обери дату завершення звітної доби.</p>':
+  const versionInfo=!plan.valid?'<p class="hintline">Оберіть дату завершення звітної доби.</p>':
     plan.duplicate?'<div class="banner">Цей самий файл уже реєстрували в цій сесії як версію за '+esc(plan.duplicate.reportDay)+'. Повтор заблоковано.</div>':
     plan.previous?'<div class="banner">За '+esc(st.reportDay)+' вже є версія №'+plan.previous.version+
       '. Після підтвердження її буде позначено як попередню; нова версія №'+plan.version+' стане актуальною.</div>':
@@ -253,7 +253,7 @@ function structuredPreview(st){
     '<div class="panel" style="margin:16px 0;padding:17px"><div class="formgroup">'+
     '<label for="structured-report-day">Звітна доба — дата завершення періоду *</label>'+
     '<input id="structured-report-day" type="date" required value="'+esc(st.reportDay||"")+'" style="max-width:235px">'+
-    '<p class="hintline">Вводиться вручну. Межі на кшталт 15:00 чи 18:00 не перевіряються і не припускаються автоматично.</p>'+
+    '<p class="hintline">За замовчуванням встановлено сьогоднішню дату за Києвом. Її можна змінити вручну. Часові межі не визначаються автоматично.</p>'+
     '</div>'+versionInfo+'</div>'+
     warnHtml+
     (errors?'<div class="banner">Виявлено '+errors+' рядків із зауваженнями. Вони не блокують реєстрацію версії, але не є підтвердженими. У демоверсії зберігається лише їхня кількість; повне «Чистилище» буде окремим модулем.</div>':"")+
@@ -316,7 +316,7 @@ if(act==="print-report")printReport()
 }catch(err){toast("Помилка: "+err.message)}});
 node.addEventListener("change",async function(e){var t=e.target;if(t.id==="file-input"){var f=t.files&&t.files[0];if(!f)return;try{await importFile(f)}catch(err){state.importError=err.message;render();toast("Не вдалося розібрати: "+err.message)}finally{t.value=""}}
 if(t.id==="structured-report-day"&&state.staged?.structured){state.staged.reportDay=t.value;render()}
- if(t.id==="filter-src"){state.srcfilter=t.value;render()}if(t.id==="filter-cat"){state.catfilter=t.value;render()}if(t.id==="report-day"){state.day=t.value;render()}});
+ if(t.id==="filter-src"){state.srcfilter=t.value;render()}if(t.id==="filter-cat"){state.catfilter=t.value;render()}if(t.id==="report-day"){state.day=t.value;state.reportDateEdited=true;render()}});
 node.addEventListener("input",function(e){
 if(e.target.id==="structured-search"&&state.staged?.structured){
   state.staged.filter=e.target.value;state.staged.page=0;

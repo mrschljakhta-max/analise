@@ -13,6 +13,17 @@
       parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === date;
   }
 
+  function todayKyiv(now) {
+    const date = now === undefined ? new Date() : now;
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/Kyiv", year: "numeric", month: "2-digit", day: "2-digit"
+    }).formatToParts(date);
+    const tokens = Object.fromEntries(parts.map(function (part) {
+      return [part.type, part.value];
+    }));
+    return tokens.year + "-" + tokens.month + "-" + tokens.day;
+  }
+
   function plan(entries, input) {
     const reportDay = input.reportDay || "";
     const sourceKind = input.sourceKind;
@@ -50,7 +61,7 @@
     return { entries: [current].concat(revised), current: current, previous: decision.previous };
   }
 
-  const api = { validDay: validDay, plan: plan, accept: accept };
+  const api = { validDay: validDay, todayKyiv: todayKyiv, plan: plan, accept: accept };
   root.ASTRA_REPORT_VERSIONS = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);
