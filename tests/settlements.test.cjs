@@ -63,5 +63,5 @@ test("existing ANALISE interface includes explicit settlement import/export acti
  assert.match(html,/vendor\/mgrs\.min\.js/);
  assert.match(html,/window\.ASTRA_SETTLEMENTS\.view/);
  assert.match(html,/settlementImport\(file\)/);
- assert.match(html,/data-action="np-export"/);
+ assert.match(html,/action==="np-export"/);
 });
