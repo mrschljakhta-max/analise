@@ -1,0 +1,23 @@
+name: Directory import checks
+on:
+  push:
+    branches: [feat/universal-reference-catalog]
+  pull_request:
+    paths:
+      - 'api/src/directories.js'
+      - 'api/src/directory-import-assets.js'
+      - 'api/tests/**'
+      - 'api/migrations/**'
+      - '.github/workflows/directory-import-checks.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test

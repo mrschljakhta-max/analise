@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { validate } from '../src/directories.js';
+const schema={fields:[{key:'name',required:true},{key:'mgrs'},{key:'lat'},{key:'lon'}]};
+test('valid row',()=>assert.equal(JSON.parse(validate(schema,{name:'Example'})).name,'Example'));
+test('required name',()=>assert.throws(()=>validate(schema,{})));
+test('reject invalid MGRS',()=>assert.throws(()=>validate(schema,{name:'Example',mgrs:'BAD!'})));
+test('accept valid MGRS syntax',()=>assert.doesNotThrow(()=>validate(schema,{name:'Example',mgrs:'36UXV12345678'})));
+test('reject latitude outside bounds',()=>assert.throws(()=>validate(schema,{name:'Example',lat:100,lon:20})));
+test('reject missing longitude',()=>assert.throws(()=>validate(schema,{name:'Example',lat:49})));

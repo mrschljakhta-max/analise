@@ -1,3 +1,5 @@
+import { DIRECTORY_IMPORT_HTML, DIRECTORY_IMPORT_CSS, DIRECTORY_IMPORT_JS } from "./directory-import-assets.js";
+import { directoryApi } from "./directories.js";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { APP_HTML, APP_CSS, APP_JS } from "./app-assets.js";
 import { IMPORT_JS, IMPORT_CSS } from "./import-demo.js";
@@ -277,6 +279,13 @@ export default {
         if(url.pathname==="/api/import.css")return appAsset(IMPORT_CSS,"text/css; charset=utf-8");
         return appAsset(APP_JS, "text/javascript; charset=utf-8");
       }
+      if (["/api/directory-import","/api/directory-import.js","/api/directory-import.css"].includes(url.pathname)) {
+        if(req.method!=="GET")return error(405,"Дозволено лише GET");
+        if(user.role!=="admin")return error(403,"Лише адміністратор");
+        if(url.pathname==="/api/directory-import")return appAsset(DIRECTORY_IMPORT_HTML,"text/html; charset=utf-8");
+        if(url.pathname==="/api/directory-import.js")return appAsset(DIRECTORY_IMPORT_JS,"text/javascript; charset=utf-8");
+        return appAsset(DIRECTORY_IMPORT_CSS,"text/css; charset=utf-8");
+      }
       if (url.pathname === "/api/test" || url.pathname === "/api/test.js" || url.pathname === "/api/test.css") {
         if (req.method !== "GET") return error(405, "Дозволено лише GET");
         if (user.role !== "admin") return error(403, "Тестування доступне лише адміністратору");
@@ -289,6 +298,7 @@ export default {
         await env.DB.prepare("SELECT 1 AS ok").first();
         return reply({ok:true,database:true,private_files:!!env.DOCUMENTS,files_enabled:env.FILE_UPLOAD_ENABLED==="true"});
       }
+      if(seg[1]==="directories")return await directoryApi(req,env,user,seg);
       if(seg[1]==="records")return await recordsApi(req,env,user,seg);
       if(seg[1]==="references")return await referencesApi(req,env,user,seg);
       if(seg[1]==="users"&&seg.length===2)return await usersApi(req,env,user);
