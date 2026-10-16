@@ -209,13 +209,11 @@ export async function contactApi(req,env,user,seg){
   }
   const fields=editable.filter(k=>k!=="normalized_name"&&k!=="group_key");
   // Normalized keys are generated server-side and are not user input.
-  const sqlFields=[...fields,"normalized_name","group_key",
-   "verified_at=CASE WHEN ?='verified' THEN COALESCE(verified_at,?) ELSE NULL END",
-   "version=version+1","updated_by=?","updated_at=?"];
   const setters=[
    ...fields.map(k=>k+"=?"),
    "normalized_name=?","group_key=?",
-   ...sqlFields.slice(fields.length)
+   "verified_at=CASE WHEN ?='verified' THEN COALESCE(verified_at,?) ELSE NULL END",
+   "version=version+1","updated_by=?","updated_at=?"
   ];
   const args=[...fields.map(k=>row[k]),row.normalized_name,row.group_key,
    row.verification_status,at,user.id,at,row.code,row.version];
