@@ -1,3 +1,6 @@
+import {PURGATORY_HTML,PURGATORY_CSS} from "./purgatory-assets.js";
+import {PURGATORY_JS} from "./purgatory-client.js";
+import {purgatoryApi} from "./purgatory-api.js";
 import { CONTACT_HTML,CONTACT_CSS } from "./contact-assets.js";
 import { CONTACT_JS } from "./contact-client.js";
 import { CONTACT_IMPORT_JS } from "./contact-import-client.js";
@@ -313,6 +316,13 @@ export default {
       if(auth.err)return auth.err;
       const user=auth.user;
       // Private working interface: HTML, CSS and JS are all Access-protected.
+      if (["/api/purgatory","/api/purgatory.css","/api/purgatory.js"].includes(url.pathname)) {
+        if(req.method!=="GET")return error(405,"Дозволено лише GET");
+        if(user.role!=="admin")return error(403,"Лише адміністратор");
+        if(url.pathname==="/api/purgatory")return appAsset(PURGATORY_HTML,"text/html; charset=utf-8");
+        if(url.pathname==="/api/purgatory.css")return appAsset(PURGATORY_CSS,"text/css; charset=utf-8");
+        return appAsset(PURGATORY_JS,"text/javascript; charset=utf-8");
+      }
       if (["/api/contacts","/api/contacts.css","/api/contacts.js","/api/contacts-import.js"].includes(url.pathname)) {
         if(req.method!=="GET")return error(405,"Дозволено лише GET");
         if(user.role!=="admin")return error(403,"Лише адміністратор");
@@ -425,6 +435,7 @@ export default {
         await env.DB.prepare("SELECT 1 AS ok").first();
         return reply({ok:true,database:true,private_files:!!env.DOCUMENTS,files_enabled:env.FILE_UPLOAD_ENABLED==="true"});
       }
+      if(seg[1]==="purgatory")return await purgatoryApi(req,env,user,seg);
       if(seg[1]==="contacts")return await contactApi(req,env,user,seg);
       if(seg[1]==="vp-import")return await vpSpImportApi(req,env,user,seg);
       if(seg[1]==="vp-directory")return await vpSpDirectoryApi(req,env,user,seg);
