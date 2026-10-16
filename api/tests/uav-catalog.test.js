@@ -34,8 +34,18 @@ function db({trigger=true,changes=1,exists=true,tableAbsent=false}={}){
       bind(...values){
         bindings.push(values);
         return {
-          first:async()=>sql.includes('sqlite_master')?
-            (trigger?{name:'audit'}:null):exists?{id:'uav-test-id'}:null,
+          first:async()=>{
+            if(sql.includes('sqlite_master'))return trigger?{name:'audit'}:null;
+            if(!exists)return null;
+            if(sql.includes('SELECT id FROM uav_models'))return {id:'uav-test-id'};
+            if(sql.includes('SELECT code,name,airframe'))return {
+              code:'UAV-0001',name:'Тестова модель',airframe:'multirotor',subtype:'fpv',
+              entry_kind:'generic',country:'',manufacturer:'',purpose:'Навчальний зразок',
+              note:'',is_active:1,version:1,created_at:'2026-10-16 09:00:00',
+              updated_at:'2026-10-16 09:00:00'
+            };
+            throw Error('Unexpected SELECT: '+sql);
+          },
           all:async()=>{
             if(tableAbsent)throw Error('D1_ERROR: no such table: uav_models');
             if(sql.includes('FROM uav_catalog_audit'))return {results:[{
