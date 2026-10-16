@@ -66,6 +66,9 @@ function cleanModel(input,editing){
     throw Error("Невірне поєднання типу й підтипу БпЛА");
   }
   const name=text(input.name,160,{required:true});
+  if(typeof input.use_side!=="string"||/[\u0000-\u001f\u007f]/.test(input.use_side)){
+    throw Error("Некоректна сторона використання");
+  }
   return {
     code:input.code,name,normalized_name:normal(name),airframe,subtype,
     entry_kind:enumOf(input.entry_kind,["model","generic"]),
