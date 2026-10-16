@@ -203,5 +203,6 @@ test("browser scripts compile and approved D1 upload requires user confirmation"
  assert.match(APPROVED_OFFICE_IMPORT_JS,/fetch\("\/api\/approved-import\/"/);
  assert.doesNotMatch(GENERIC_PREVIEW_JS,/\bfetch\s*\(/);
  assert.match(GENERIC_PREVIEW_JS,/AnaliseLocalBridge/);
- assert.match(DATABASE_VIEWER_JS,/office_inventory/);
+ assert.match(DATABASE_VIEWER_JS,/new URLSearchParams\(globalThis\.location\.search\)/);
+ assert.match(GENERIC_PREVIEW_HTML,/\/api\/database-viewer\?dataset=office_inventory/);
 });
