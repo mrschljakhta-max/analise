@@ -84,13 +84,13 @@ BEGIN
    'source_label',OLD.source_label,'verified_at',OLD.verified_at,'is_active',OLD.is_active
   ),
   json_object(
-   'name',NEW.name,'group_label',NEW.group_label,'phone',NEW.phone,
+   'name',NEW.name,'aliases',NEW.aliases,'group_label',NEW.group_label,'phone',NEW.phone,
    'whatsapp',NEW.whatsapp,'signal',NEW.signal,
    'delta_account',NEW.delta_account,'email',NEW.email,
    'direction',NEW.direction,'unit_name',NEW.unit_name,
    'duty_role',NEW.duty_role,'note',NEW.note,
    'verification_status',NEW.verification_status,
-   'source_label',NEW.source_label,'is_active',NEW.is_active
+   'source_label',NEW.source_label,'verified_at',NEW.verified_at,'is_active',NEW.is_active
   )
  );
 END;
