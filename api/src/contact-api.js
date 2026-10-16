@@ -108,18 +108,42 @@ async function bulk(req,env,user,operation){
    const old=existing.get(keyOf(r));
    return old.phone!==r.phone||old.email!==r.email||old.delta_account!==r.delta_account;
   });
+  // Re-used phone numbers across different contact names require human review,
+  // even when those records are otherwise new. Shared duty numbers are possible:
+  // flag them, never merge or overwrite anything automatically.
+  const reviews=new Map();
+  for(const row of changed){
+   const prev=existing.get(keyOf(row));
+   reviews.set(keyOf(row),{row:row.source_row,name:row.name,group_label:row.group_label,
+    fields:[
+     ...(prev.phone!==row.phone?["phone"]:[]),
+     ...(prev.email!==row.email?["email"]:[]),
+     ...(prev.delta_account!==row.delta_account?["delta_account"]:[])
+    ]});
+  }
+  const phoneIndex=new Map();
+  for(const row of current){
+   if(row.phone&&!phoneIndex.has(row.phone))phoneIndex.set(row.phone,row);
+  }
+  for(const row of incoming){
+   if(!row.phone)continue;
+   const prior=phoneIndex.get(row.phone);
+   if(prior&&keyOf(prior)!==keyOf(row)){
+    const key=keyOf(row);
+    if(!reviews.has(key))reviews.set(key,{
+     row:row.source_row,name:row.name,group_label:row.group_label,fields:[]
+    });
+    reviews.get(key).fields.push("Однаковий телефон у різних контактах");
+   }
+   if(!prior)phoneIndex.set(row.phone,row);
+  }
   const counts={input:incoming.length,new:novel.length,existing:duplicates.length,
-   review:changed.length};
+   review:reviews.size};
   const digest=await fingerprint(incoming,current);
   if(operation==="prepare"){
    return respond({ok:true,counts,
     existing:duplicates.map(x=>({row:x.source_row,name:x.name,group_label:x.group_label})),
-    review:changed.map(x=>({row:x.source_row,name:x.name,group_label:x.group_label,
-     fields:[
-      ...(existing.get(keyOf(x)).phone!==x.phone?["phone"]:[]),
-      ...(existing.get(keyOf(x)).email!==x.email?["email"]:[]),
-      ...(existing.get(keyOf(x)).delta_account!==x.delta_account?["delta_account"]:[])
-     ]})),
+    review:[...reviews.values()],
     fingerprint:digest,committed:false});
   }
   if(body.confirm!=="IMPORT_CONTACTS_NEW_ONLY"||body.fingerprint!==digest){
