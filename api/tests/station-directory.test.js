@@ -102,7 +102,7 @@ test('model card exposes only catalog fields and reference completeness',async()
   assert.equal(body.station.station_code,'ST-0001');
   assert.equal(body.station.org_unit_code,'TEST');
   assert.equal(body.characteristics.length,2);
-  assert.equal(body.history_available,false);
+  assert.equal(body.history_available,undefined);
   assert.equal(body.station.station_type_id,undefined);
   assert.deepEqual(db.params,['ST-0001','type-uuid']);
   assert.doesNotMatch(JSON.stringify(body),/latitude|longitude|mgrs|deployment_status|operational_status|freq_from_mhz|radius_km/);
@@ -169,10 +169,11 @@ function patch(body,options={}){
     body:JSON.stringify(body)
   });
 }
-function editingDb({exists=true,changes=1,throwOnUpdate=false}={}){
+function editingDb({exists=true,changes=1,throwOnUpdate=false,auditReady=true}={}){
   const queries=[],bound=[];
   const env={DB:{prepare(sql){
     queries.push(sql);
+    if(sql.includes('station_accounting_audit_after_update'))return {first:async()=>auditReady?{name:'station_accounting_audit_after_update'}:null};
     if(sql.includes('SELECT id FROM org_units')){
       return {bind(id){bound.push(id);return {first:async()=>exists?{id}:null}}};
     }
@@ -199,30 +200,30 @@ test('PATCH edits only administrative fields with an existing organization',asyn
   assert.equal(db.bound[0],'unit-1');
   assert.deepEqual(db.bound.slice(1,4),['Оновлена тестова назва','unit-1',0]);
   assert.deepEqual(db.bound.slice(-2),['ST-0001','2026-10-16 07:22:00']);
-  assert.equal(db.queries.length,2);
+  assert.equal(db.queries.length,3);
   assert.doesNotMatch(db.queries.join('\n'),/station_location_history|deployment_status|operational_status|mgrs|latitude|longitude/);
 });
 test('PATCH accepts empty organization without changing any org directory rows',async()=>{
   const db=editingDb();
   const result=await stationDirectoryApi(patch(editBody({org_unit_id:null})),db.env,user,cardSegment);
   assert.equal(result.status,200);
-  assert.equal(db.queries.length,1);
-  assert.match(db.queries[0],/^UPDATE stations SET/);
+  assert.equal(db.queries.length,2);
+  assert.match(db.queries[1],/^UPDATE stations SET/);
   assert.equal(db.bound[1],null);
 });
 test('PATCH rejects inactive or nonexistent organizational IDs',async()=>{
   const db=editingDb({exists:false});
   const result=await stationDirectoryApi(patch(editBody()),db.env,user,cardSegment);
   assert.equal(result.status,400);
-  assert.equal(db.queries.length,1);
-  assert.ok(db.queries[0].includes('is_active=1'));
+  assert.equal(db.queries.length,2);
+  assert.ok(db.queries[1].includes('is_active=1'));
 });
 test('PATCH reports concurrent edits and does not overwrite newer data',async()=>{
   const db=editingDb({changes:0});
   const result=await stationDirectoryApi(patch(editBody()),db.env,user,cardSegment);
   assert.equal(result.status,409);
   assert.match((await result.json()).error,/змінено/);
-  assert.ok(db.queries[1].includes('WHERE station_code=? AND updated_at=?'));
+  assert.ok(db.queries[2].includes('WHERE station_code=? AND updated_at=?'));
 });
 test('PATCH rejects unknown input properties and invalid administrative data',async()=>{
   for(const body of [
