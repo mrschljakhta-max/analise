@@ -12,11 +12,12 @@ const respond=(value,status=200)=>new Response(JSON.stringify(value),{status,hea
 const trim=v=>typeof v==="string"?v.trim():"";
 const norm=v=>trim(v).replace(/\s+/g," ").toLocaleLowerCase("uk-UA");
 const codeValid=v=>typeof v==="string"&&/^[A-Za-z0-9_-]{2,80}$/.test(v);
-const permitted=["source_row","code","name","airframe","subtype","entry_kind","country","manufacturer","purpose","note","is_active"];
+const permitted=["source_row","code","name","airframe","subtype","entry_kind","country","manufacturer","purpose","note","is_active","use_side"];
 const normalize=(raw)=>{
   if(!raw||typeof raw!=="object"||Array.isArray(raw))throw Error("Некоректний рядок");
-  if(Object.keys(raw).length!==permitted.length||
-    Object.keys(raw).some(k=>!permitted.includes(k)))throw Error("Неприпустимі поля імпорту");
+  if(![permitted.length,permitted.length-1].includes(Object.keys(raw).length)||
+    Object.keys(raw).some(k=>!permitted.includes(k))||
+    permitted.slice(0,-1).some(k=>!(k in raw)))throw Error("Неприпустимі поля імпорту");
   const source_row=raw.source_row;
   if(!Number.isSafeInteger(source_row)||source_row<2||source_row>100001)throw Error("Некоректний номер рядка");
   const code=raw.code,name=trim(raw.name),
@@ -37,9 +38,14 @@ const normalize=(raw)=>{
     throw Error("Некоректна примітка");
   }
   if(![0,1].includes(raw.is_active))throw Error("Некоректний стан");
+  const use_side=raw.use_side===undefined?"":raw.use_side;
+  if(typeof use_side!=="string"||use_side.length>100||/[\u0000-\u001f\u007f]/.test(use_side)){
+    throw Error("Некоректна сторона використання");
+  }
   return {source_row,code,name,normalized_name:norm(name),airframe,subtype,entry_kind,
     country:trim(raw.country),manufacturer:trim(raw.manufacturer),
-    purpose:trim(raw.purpose),note:trim(raw.note),is_active:raw.is_active};
+    purpose:trim(raw.purpose),note:trim(raw.note),is_active:raw.is_active,
+    use_side:trim(use_side)};
 };
 async function parse(req){
   if(!(req.headers.get("content-type")||"").toLowerCase().startsWith("application/json")){
@@ -124,6 +130,10 @@ export async function uavImportApi(req,env,user,seg){
       "SELECT name FROM sqlite_master WHERE type='trigger' AND name='uav_model_audit_insert' LIMIT 1"
     ).first();
     if(!gate)return respond({error:"Спочатку застосуй міграцію довідника БпЛА 0009"},503);
+    const sideGate=await env.DB.prepare(
+      "SELECT name FROM sqlite_master WHERE type='trigger' AND name='uav_model_operating_audit_insert' LIMIT 1"
+    ).first();
+    if(!sideGate)return respond({error:"Спочатку застосуй міграцію D1 0010 для сторони та країн використання"},503);
     existing=await snapshot(env.DB);
     verified=compare(parsed.rows,existing);
     if(verified.errors.length)return respond({
@@ -151,11 +161,11 @@ export async function uavImportApi(req,env,user,seg){
   const timestamp=new Date().toISOString();
   const statements=verified.newItems.map(row=>env.DB.prepare(
     "INSERT INTO uav_models (id,code,name,normalized_name,airframe,subtype,entry_kind,"+
-    "country,manufacturer,purpose,note,is_active,created_at,updated_at) "+
-    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+    "country,manufacturer,purpose,note,is_active,use_side,created_at,updated_at) "+
+    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
   ).bind(crypto.randomUUID(),row.code,row.name,row.normalized_name,
     row.airframe,row.subtype,row.entry_kind,row.country,row.manufacturer,
-    row.purpose,row.note,row.is_active,timestamp,timestamp));
+    row.purpose,row.note,row.is_active,row.use_side,timestamp,timestamp));
   try{
     const result=await env.DB.batch(statements);
     if(!Array.isArray(result)||result.length!==statements.length||
