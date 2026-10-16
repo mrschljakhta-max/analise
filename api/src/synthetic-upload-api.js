@@ -133,6 +133,21 @@ async function persistDemo(req,env,user,docs){
   if(!result.ok)throw Error(body.error||"Не вдалося зберегти тестові питання");
   saved+=body.accepted;
  }
+ // Show CURRENT queue state, not the count of typographical variants in the file.
+ // Approved rules may have resolved an issue at insertion time.
+ for(const doc of docs){
+  if(doc.type==="unsupported")continue;
+  const rows=await env.DB.prepare(
+   "SELECT source_ref,status FROM dq_occurrences WHERE source_id=? AND active=1 LIMIT 150"
+  ).bind(doc.source_id).all();
+  const byRef=new Map((rows.results||[]).map(r=>[r.source_ref,r.status]));
+  for(const line of doc.detail){
+   if(line.status==="known")continue;
+   const ref=doc.source_id+":row-"+String(line.row).padStart(3,"0")+":label";
+   if(byRef.get(ref)==="resolved")line.status="resolved";
+  }
+  doc.questions=doc.detail.filter(line=>line.status==="review").length;
+ }
  return {persisted:saved};
 }
 export async function syntheticUploadApi(req,env,user){
