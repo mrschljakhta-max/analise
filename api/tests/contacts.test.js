@@ -1,4 +1,5 @@
 import test from "node:test";
+import {readFileSync} from "node:fs";
 import assert from "node:assert/strict";
 import {
  CONTACT_FIELDS,contactRecord,contactPhone,contactEmail,contactKeys
@@ -219,4 +220,18 @@ test("private contact HTML contains DELTA/email and a two-stage Excel flow",()=>
  assert.doesNotMatch(CONTACT_IMPORT_JS,/\.innerHTML\s*=/);
  assert.match(DASHBOARD_HTML,/data-count="contacts"/);
  assert.match(DASHBOARD_HTML,/href="\/api\/contacts"/);
+});
+
+test("contact migration audits DELTA, email, alias and verification date",()=>{
+ const sql=readFileSync(new URL("../migrations/0012_contact_directory.sql",import.meta.url),"utf8");
+ assert.match(sql,/CREATE TABLE IF NOT EXISTS contacts/);
+ assert.match(sql,/CREATE TRIGGER IF NOT EXISTS contact_audit_insert/);
+ assert.match(sql,/CREATE TRIGGER IF NOT EXISTS contact_audit_update/);
+ assert.match(sql,/delta_account TEXT NOT NULL/);
+ assert.match(sql,/email TEXT NOT NULL/);
+ assert.equal((sql.match(/'delta_account',NEW.delta_account/g)||[]).length,2);
+ assert.equal((sql.match(/'email',NEW.email/g)||[]).length,2);
+ assert.equal((sql.match(/'aliases',NEW.aliases/g)||[]).length,2);
+ assert.equal((sql.match(/'verified_at',NEW.verified_at/g)||[]).length,2);
+ assert.match(sql,/actor_id TEXT/);
 });
