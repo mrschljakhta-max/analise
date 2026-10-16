@@ -54,7 +54,15 @@ async function snapshot(db){
  const [rows,rules,audit,counts,dirs]=await Promise.all([
   db.prepare("SELECT o.directory_id,t.title AS directory_title,o.context_key,o.raw_value,o.normalized_value,COUNT(*) AS occurrences,MIN(o.id) AS first_id FROM dq_occurrences o JOIN directory_types t ON t.id=o.directory_id WHERE o.active=1 AND o.status='pending' GROUP BY o.directory_id,o.context_key,o.normalized_value ORDER BY occurrences DESC,o.directory_id,o.normalized_value LIMIT 150").all(),
   db.prepare("SELECT r.id,r.directory_id,t.title AS directory_title,r.context_key,r.raw_example,r.normalized_value,r.target_id,json_extract(e.data_json,'$.name') AS target_name,r.active,r.version,r.updated_at FROM dq_rules r JOIN directory_types t ON t.id=r.directory_id LEFT JOIN directory_entries e ON e.id=r.target_id ORDER BY r.updated_at DESC LIMIT 150").all(),
-  db.prepare("SELECT id,entity_type,action,actor_id,at,before_json,after_json FROM dq_audit ORDER BY id DESC LIMIT 100").all(),
+  db.prepare("SELECT a.id,a.entity_type,a.entity_id,a.action,a.actor_id,a.at,a.before_json,a.after_json,"+
+   "json_extract(ea.data_json,'$.name') AS after_target_name,"+
+   "json_extract(eb.data_json,'$.name') AS before_target_name,"+
+   "r.raw_example AS rule_example "+
+   "FROM dq_audit a "+
+   "LEFT JOIN directory_entries ea ON ea.id=json_extract(a.after_json,'$.target') "+
+   "LEFT JOIN directory_entries eb ON eb.id=json_extract(a.before_json,'$.target') "+
+   "LEFT JOIN dq_rules r ON a.entity_type='rule' AND a.entity_id=r.id "+
+   "ORDER BY a.id DESC LIMIT 100").all(),
   db.prepare("SELECT (SELECT COUNT(*) FROM dq_occurrences WHERE active=1 AND status='pending') AS pending_occurrences,(SELECT COUNT(*) FROM dq_occurrences WHERE active=1 AND status='resolved') AS resolved_occurrences,(SELECT COUNT(*) FROM dq_rules WHERE active=1) AS active_rules").first(),
   db.prepare("SELECT id,title FROM directory_types ORDER BY title LIMIT 100").all()
  ]);
