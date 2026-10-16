@@ -76,8 +76,9 @@ export function versionMutations(DB,{plans,sessionId,actorId,inputSha256}){
    statements.push(DB.prepare(
     "INSERT INTO demo_report_versions "+
     "(id,kind,report_date,revision,content_sha256,source_name,snapshot_json,session_id,previous_version_id,actor_id) "+
-    "VALUES (?,?,?,?,?,?,?,?,?,?)"
-   ).bind(versionId,p.kind,p.report_date,p.current_revision+1,p.sha256,
+    "VALUES (?,?,?,(SELECT COALESCE(MAX(revision),0)+1 FROM demo_report_versions "+
+    "WHERE kind=? AND report_date=?),?,?,?,?,?,?)"
+   ).bind(versionId,p.kind,p.report_date,p.kind,p.report_date,p.sha256,
     p.name,p.snapshot_json,sessionId,p.expected_version_id||null,actorId));
   }
   // Trigger checks optimistic CAS and changes the active pointer atomically.
