@@ -68,7 +68,7 @@ test("same session + bytes are idempotent, distinct upload creates separate sess
   assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM demo_import_documents").get().n,2);
   await saveSyntheticHistory(d1,{sessionId:second,...opts});
   assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM demo_import_documents").get().n,4);
-  const get=async(path)=>syntheticHistoryApi(new Request(clientUrl+path),{DB:d1},actor,["api","synthetic-upload","history",...path.slice(1).split('/').filter(Boolean)]);
+  const get=async(path)=>syntheticHistoryApi(new Request(clientUrl+path),{DB:d1},actor,["api","synthetic-upload","history",...(path.startsWith("/")?[path.slice(1)]:[])]);
   const list=await get("?offset=0");
   assert.equal(list.status,200);
   const listBody=await list.json();
@@ -94,7 +94,9 @@ test("multiple distinct files can share one drag-drop session",async()=>{
   await saveSyntheticHistory(d1,{sessionId,actorId:actor.id,uploadName:"ANALISE_ДЕМО_таблиця.docx",sourceBytes:new Uint8Array([1]),documents:[docs[0]]});
   await saveSyntheticHistory(d1,{sessionId,actorId:actor.id,uploadName:"ANALISE_ДЕМО_журнал.xlsx",sourceBytes:new Uint8Array([2]),documents:[docs[1]]});
   const session=sqlite.prepare("SELECT input_count,document_count,row_count FROM demo_import_sessions WHERE id=?").get(sessionId);
-  assert.deepEqual(session,{input_count:2,document_count:2,row_count:5});
+  assert.equal(session.input_count,2);
+  assert.equal(session.document_count,2);
+  assert.equal(session.row_count,5);
  }finally{sqlite.close()}
 });
 test("history is strictly admin-only and validates IDs and date filters",async()=>{
