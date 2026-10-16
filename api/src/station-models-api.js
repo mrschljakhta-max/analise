@@ -52,7 +52,7 @@ async function parseChange(req){
 
 export async function stationModelsApi(req,env,user,segments){
   if(user?.role!=="admin"||user.active===0)return reply({error:"Лише адміністратор"},403);
-  if(segments.length!==3||!["data","card"].includes(segments[2])){
+  if(segments.length!==3||!["data","card","history"].includes(segments[2])){
     return reply({error:"Невідомий маршрут"},404);
   }
   const mode=segments[2];
@@ -67,6 +67,13 @@ export async function stationModelsApi(req,env,user,segments){
     if(parsed.error)return reply({error:parsed.error},400);
     const input=parsed.value;
     try{
+      // Writes require the trigger, so no successful edit can bypass the journal.
+      const auditTrigger=await env.DB.prepare(
+        "SELECT name FROM sqlite_master WHERE type='trigger' AND name='station_model_audit_after_update' LIMIT 1"
+      ).first();
+      if(!auditTrigger)return reply({
+        error:"Спочатку застосуй міграцію журналу змін D1. До цього редагування заблоковано."
+      },503);
       const oldIso=input.expected_updated_at.includes("T")
         ?input.expected_updated_at
         :input.expected_updated_at.replace(" ","T")+"Z";
@@ -89,6 +96,27 @@ export async function stationModelsApi(req,env,user,segments){
   }
 
   try{
+    if(mode==="history"){
+      const code=new URL(req.url).searchParams.get("code")||"";
+      if(!isCode(code))return reply({error:"Некоректний код моделі"},400);
+      try{
+        const events=await env.DB.prepare(
+          "SELECT changed_at,old_name,new_name,old_category,new_category,"+
+          "old_note,new_note,old_is_active,new_is_active "+
+          "FROM station_model_audit WHERE model_import_code=? "+
+          "ORDER BY id DESC LIMIT 101"
+        ).bind(code).all();
+        const found=events.results||[];
+        return reply({history_available:true,items:found.slice(0,100),
+          truncated:found.length>100});
+      }catch(e){
+        // Old deployments without the migration have no history: say so explicitly.
+        if(/no such table: station_model_audit/i.test(String(e?.message||e))){
+          return reply({history_available:false,items:[],truncated:false});
+        }
+        throw e;
+      }
+    }
     if(mode==="data"){
       const list=await env.DB.prepare(
         "SELECT st.import_code,st.type_code,st.name,st.category,st.is_active,st.updated_at,"+
@@ -103,13 +131,19 @@ export async function stationModelsApi(req,env,user,segments){
     const code=new URL(req.url).searchParams.get("code")||"";
     if(!isCode(code))return reply({error:"Некоректний код моделі"},400);
     const model=await env.DB.prepare(
-      "SELECT st.import_code,st.type_code,st.name,st.category,st.note,st.is_active,st.updated_at,"+
+      "SELECT st.import_code,st.type_code,st.name,st.category,st.note,"+
+      "st.can_detect,st.can_jam,st.is_active,st.updated_at,"+
       "(SELECT COUNT(*) FROM stations s WHERE s.station_type_id=st.id) AS station_count,"+
       "(SELECT COUNT(*) FROM station_type_antennas a WHERE a.station_type_id=st.id) AS profile_count "+
       "FROM station_types st WHERE st.import_code=? LIMIT 1"
     ).bind(code).first();
     if(!model)return reply({error:"Модель не знайдено"},404);
-    return reply({model});
+    const rows=await env.DB.prepare(
+      "SELECT antenna_kind,is_active FROM station_type_antennas "+
+      "WHERE station_type_id=(SELECT id FROM station_types WHERE import_code=? LIMIT 1) "+
+      "ORDER BY antenna_kind"
+    ).bind(code).all();
+    return reply({model,profiles:rows.results||[]});
   }catch{
     return reply({error:"Не вдалося отримати довідник моделей із D1"},503);
   }
