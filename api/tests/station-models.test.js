@@ -17,10 +17,13 @@ const patch=(obj=body,headers={})=>new Request(url('card'),{
   method:'PATCH',headers:{'Content-Type':'application/json',...headers},
   body:JSON.stringify(obj)
 });
-function mockDatabase({changed=1,existing=true}={}){
+function mockDatabase({changed=1,existing=true,auditReady=true,auditMissing=false}={}){
   const queries=[],params=[];
   const env={DB:{prepare(sql){
     queries.push(sql);
+    if(sql.includes("FROM sqlite_master WHERE type='trigger'")){
+      return {first:async()=>auditReady?{name:'station_model_audit_after_update'}:null};
+    }
     if(sql.startsWith('UPDATE station_types')){
       return {bind(...values){params.push(...values);return{
         run:async()=>({meta:{changes:changed}})
@@ -34,6 +37,23 @@ function mockDatabase({changed=1,existing=true}={}){
           station_count:5,profile_count:2
         }:null
       }}};
+    }
+    if(sql.startsWith('SELECT antenna_kind,is_active FROM station_type_antennas')){
+      return {bind(code){params.push(code);return {all:async()=>({results:[
+        {antenna_kind:'directional_jam',is_active:1}
+      ]})}}};
+    }
+    if(sql.includes('FROM station_model_audit')){
+      return {bind(code){params.push(code);return {all:async()=>{
+        if(auditMissing)throw Error('D1_ERROR: no such table: station_model_audit');
+        return {results:[{
+          changed_at:'2026-10-16 08:05:00',
+          old_name:'Модель',new_name:'Модель',
+          old_category:'Тест',new_category:'Тест',
+          old_note:'',new_note:'Тестове редагування',
+          old_is_active:1,new_is_active:1
+        }]};
+      }}}};
     }
     if(sql.includes('FROM station_types st ORDER BY')){
       return {all:async()=>({results:[{
@@ -66,6 +86,7 @@ test('catalog card reads model administrative metadata only',async()=>{
   assert.equal(data.model.import_code,'MODEL-001');
   assert.equal(data.model.station_count,5);
   assert.equal(data.model.profile_count,2);
+  assert.deepEqual(data.profiles,[{antenna_kind:'directional_jam',is_active:1}]);
   assert.doesNotMatch(JSON.stringify(data),/freq_from_mhz|radius_km|latitude|longitude|mgrs|operational_status/);
   assert.ok(db.queries.every(q=>q.trimStart().startsWith('SELECT')));
 });
@@ -76,10 +97,11 @@ test('model administrative edits leave model codes and station relationships unt
   const data=await res.json();
   assert.equal(data.saved,true);
   assert.equal(data.code,'MODEL-001');
-  assert.equal(db.queries.length,1);
-  assert.match(db.queries[0],/^UPDATE station_types SET name=/);
-  assert.match(db.queries[0],/WHERE import_code=\? AND updated_at=\?/);
-  assert.doesNotMatch(db.queries[0],/\b(DELETE|INSERT|DROP|ALTER)\b|station_location_history|\bstations\b|freq_from_mhz|radius_km/);
+  assert.equal(db.queries.length,2);
+  assert.match(db.queries[0],/SELECT name FROM sqlite_master/);
+  assert.match(db.queries[1],/^UPDATE station_types SET name=/);
+  assert.match(db.queries[1],/WHERE import_code=\? AND updated_at=\?/);
+  assert.doesNotMatch(db.queries[1],/\b(DELETE|INSERT|DROP|ALTER)\b|station_location_history|\bstations\b|freq_from_mhz|radius_km/);
   assert.equal(db.params[0],'Модель Тест');
   assert.equal(db.params[1],'модель тест');
   assert.equal(db.params[2],'Тестова категорія');
@@ -136,4 +158,54 @@ test('model directory includes accessible editing form and valid client-side JS'
   assert.match(STATION_MODELS_JS,/confirm\(/);
   assert.match(STATION_MODELS_CSS,/#card\[open\].*display:flex/);
   assert.doesNotThrow(()=>new Function(STATION_MODELS_JS));
+});
+
+
+test('history endpoint returns real administrative before/after values',async()=>{
+  const db=mockDatabase();
+  const response=await stationModelsApi(
+    new Request(url('history')+'?code=MODEL-001'),db.env,user,seg('history'));
+  assert.equal(response.status,200);
+  const data=await response.json();
+  assert.equal(data.history_available,true);
+  assert.equal(data.items.length,1);
+  assert.equal(data.items[0].new_note,'Тестове редагування');
+  assert.equal(data.items[0].old_note,'');
+  assert.match(db.queries[0],/FROM station_model_audit/);
+  assert.match(db.queries[0],/ORDER BY id DESC LIMIT 101/);
+  assert.ok(db.queries.every(q=>q.trimStart().startsWith('SELECT')));
+});
+
+test('history view states explicitly if migration has not been applied',async()=>{
+  const db=mockDatabase({auditMissing:true});
+  const response=await stationModelsApi(
+    new Request(url('history')+'?code=MODEL-001'),db.env,user,seg('history'));
+  assert.equal(response.status,200);
+  assert.deepEqual(await response.json(),{
+    history_available:false,items:[],truncated:false
+  });
+});
+
+test('model editing is blocked if the audit trigger has not been migrated',async()=>{
+  const db=mockDatabase({auditReady:false});
+  const response=await stationModelsApi(patch(),db.env,user,seg('card'));
+  assert.equal(response.status,503);
+  assert.match((await response.json()).error,/міграцію/);
+  assert.equal(db.queries.length,1);
+  assert.ok(db.queries[0].includes('sqlite_master'));
+});
+
+test('model directory tabs preserve editing and expose actual audit only after migration',()=>{
+  for(const name of ['general','passport','history']){
+    assert.match(STATION_MODELS_HTML,new RegExp('id="tab-'+name+'"'));
+    assert.match(STATION_MODELS_HTML,new RegExp('id="panel-'+name+'"'));
+  }
+  assert.match(STATION_MODELS_HTML,/role="tablist"/);
+  assert.match(STATION_MODELS_HTML,/aria-controls="panel-history"/);
+  assert.match(STATION_MODELS_JS,/function activateTab\(/);
+  assert.match(STATION_MODELS_JS,/state\.editing&&!cancelEdit\(\)/);
+  assert.match(STATION_MODELS_JS,/loadHistory\(state\.model\.import_code\)/);
+  assert.match(STATION_MODELS_JS,/\/api\/station-models\/history\?code=/);
+  assert.match(STATION_MODELS_JS,/state\.historyLoaded=false/);
+  assert.match(STATION_MODELS_CSS,/#card \.card-tabs button\[aria-selected="true"\]/);
 });
