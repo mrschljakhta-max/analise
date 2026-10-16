@@ -25,3 +25,4 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: find src -name '*.js' -print0 | xargs -0 -r -n 1 node --check
       - run: npm test
+      - run: npx wrangler deploy --dry-run --outdir /tmp/analise-dry-run
