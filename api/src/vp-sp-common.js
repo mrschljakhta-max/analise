@@ -1,7 +1,9 @@
 // Non-operational VP/SP name directory helpers. No location or unit fields.
 export const vpNormalizeName=raw=>{
   if(typeof raw!=="string")throw Error("Назва має бути текстом");
+  if(/[\u0000-\u001f\u007f]/u.test(raw))throw Error("Некоректні символи в назві");
   let name=raw.trim().replace(/\s+/gu," ");
+  if(/^ВП$/iu.test(name))throw Error("Відсутня назва ВП");
   name=name.replace(/^ВП(?:[\s.:–—-])+/iu,"").trim();
   if(/^матє$/iu.test(name))name="Мате";
   if(!name||name.length>160||/[\u0000-\u001f\u007f]/u.test(name)){
