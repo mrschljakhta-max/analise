@@ -28,10 +28,10 @@ function db(row=counts){
   let calls=0;
   const env={DB:{prepare(sql){
    calls++;
-   assert.match(sql,/SELECT COUNT\\(\\*\\) FROM directory_entries/);
-   assert.match(sql,/SELECT COUNT\\(\\*\\) FROM vp_sp_objects WHERE kind='vp'/);
-   assert.match(sql,/SELECT COUNT\\(\\*\\) FROM vp_sp_objects WHERE kind='sp'/);
-   assert.doesNotMatch(sql,/SELECT\\s+name|SELECT\\s+mgrs|SELECT\\s+org_unit_id/i);
+   assert.match(sql,/SELECT COUNT\(\*\) FROM directory_entries/);
+   assert.match(sql,/SELECT COUNT\(\*\) FROM vp_sp_objects WHERE kind='vp'/);
+   assert.match(sql,/SELECT COUNT\(\*\) FROM vp_sp_objects WHERE kind='sp'/);
+   assert.doesNotMatch(sql,/SELECT\s+name|SELECT\s+mgrs|SELECT\s+org_unit_id/i);
    return {first:async()=>row};
   }}};
   return {env,get calls(){return calls}};
@@ -43,7 +43,7 @@ test("dashboard: admin gets live aggregate values without row-level records",asy
  const result=await res.json();
  assert.equal(result.role,"admin");
  assert.deepEqual(result.counts,counts);
- assert.match(result.generated_at,/^\\d{4}-\\d{2}-\\d{2}T/);
+ assert.match(result.generated_at,/^\d{4}-\d{2}-\d{2}T/);
  assert.equal(fixture.calls,1);
  assert.match(res.headers.get("cache-control"),/no-store/);
  assert.equal("items" in result,false);
@@ -97,26 +97,26 @@ test("dashboard: HTML routes to every existing administrative module",()=>{
 });
 test("dashboard: browser scripts validate summaries and reveal admin-only cards",()=>{
  assert.doesNotThrow(()=>new Function(DASHBOARD_JS));
- assert.match(DASHBOARD_JS,/data\\.role==='admin'/);
- assert.match(DASHBOARD_JS,/Number\\.isSafeInteger/);
+ assert.match(DASHBOARD_JS,/data\.role==='admin'/);
+ assert.match(DASHBOARD_JS,/Number\.isSafeInteger/);
  assert.match(DASHBOARD_JS,/db-admin-ready/);
- assert.match(DASHBOARD_JS,/location|filter\\(/);
- assert.doesNotMatch(DASHBOARD_JS,/\\.innerHTML\\s*=/);
- assert.match(DASHBOARD_CSS,/\\[data-admin-only\\]\\{display:none!important\\}/);
- assert.match(DASHBOARD_CSS,/@media\\(max-width:670px\\)/);
- assert.match(DASHBOARD_CSS,/@media\\(prefers-reduced-motion:reduce\\)/);
+ assert.match(DASHBOARD_JS,/location|filter\(/);
+ assert.doesNotMatch(DASHBOARD_JS,/\.innerHTML\s*=/);
+ assert.match(DASHBOARD_CSS,/\[data-admin-only\]\{display:none!important\}/);
+ assert.match(DASHBOARD_CSS,/@media\(max-width:670px\)/);
+ assert.match(DASHBOARD_CSS,/@media\(prefers-reduced-motion:reduce\)/);
 });
 test("dashboard: shared top navigation is protected and uses only defined local routes",()=>{
  assert.doesNotThrow(()=>new Function(GLOBAL_NAV_JS));
- assert.match(GLOBAL_NAV_JS,/fetch\\('\\/api\\/me'/);
- assert.match(GLOBAL_NAV_JS,/data\\.role==='admin'/);
- assert.match(GLOBAL_NAV_CSS,/\\.an-topnav/);
- assert.doesNotMatch(GLOBAL_NAV_JS,/\\.innerHTML\\s*=/);
+ assert.match(GLOBAL_NAV_JS,/fetch\('\/api\/me'/);
+ assert.match(GLOBAL_NAV_JS,/data\.role==='admin'/);
+ assert.match(GLOBAL_NAV_CSS,/\.an-topnav/);
+ assert.doesNotMatch(GLOBAL_NAV_JS,/\.innerHTML\s*=/);
  for(const page of [DIRECTORY_CATALOG_HTML,STATION_DIRECTORY_HTML,STATION_MODELS_HTML,
   UAV_CATALOG_HTML,VP_SP_HTML,ORG_DIRECTORY_HTML,DIRECTORY_VIEW_HTML,DIRECTORY_IMPORT_HTML,
   ORG_IMPORT_HTML,STATION_IMPORT_HTML,UAV_IMPORT_HTML]){
-  assert.match(page,/href="\\/api\\/global-nav\\.css"/);
-  assert.match(page,/src="\\/api\\/global-nav\\.js"/);
+  assert.match(page,/href="\/api\/global-nav\.css"/);
+  assert.match(page,/src="\/api\/global-nav\.js"/);
  }
- assert.match(APP_HTML,/href="\\/api\\/dashboard"/);
+ assert.match(APP_HTML,/href="\/api\/dashboard"/);
 });
