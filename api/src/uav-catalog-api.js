@@ -23,7 +23,33 @@ const normal=v=>v.replace(/\s+/g," ").toLocaleLowerCase("uk-UA");
 const enumOf=(value,accepted)=>{if(!accepted.includes(value))throw Error("Некоректне значення переліку");return value};
 const active=v=>{if(v!==0&&v!==1)throw Error("Стан обліку повинен бути 0 або 1");return v};
 const version=v=>{if(!Number.isSafeInteger(v)||v<1)throw Error("Некоректна версія запису");return v};
-const nameFields=["code","name","airframe","subtype","entry_kind","country","manufacturer","purpose","note","is_active"];
+const nameFields=["code","name","airframe","subtype","entry_kind","use_side","operating_countries","manufacturer","purpose","note","is_active"];
+function cleanCountries(value){
+  if(!Array.isArray(value)||value.length>30)throw Error("Обери до 30 країн використання");
+  const codes=new Set();
+  for(const code of value){
+    if(typeof code!=="string"||!/^[A-Z]{2}$/.test(code)||codes.has(code)){
+      throw Error("Некоректний або повторний код країни");
+    }
+    codes.add(code);
+  }
+  return [...codes].sort();
+}
+const decodeCountries=value=>{
+  try{
+    const parsed=JSON.parse(value||"[]");
+    return Array.isArray(parsed)?parsed.filter(c=>typeof c==="string"&&/^[A-Z]{2}$/.test(c)):[];
+  }catch{return []}
+};
+async function verifyCountryCodes(DB,codes){
+  if(!codes.length)return true;
+  const placeholders=codes.map(()=>"?").join(",");
+  const found=await DB.prepare(
+    "SELECT code FROM uav_countries WHERE is_active=1 AND code IN ("+placeholders+")"
+  ).bind(...codes).all();
+  return new Set((found.results||[]).map(r=>r.code)).size===codes.length;
+}
+
 const rfFields=["code","channel_kind","freq_min_mhz","freq_max_mhz","bandwidth_mhz","modulation","source_label","verification_status","note"];
 const materialFields=["code","title","kind","url","note"];
 function keys(input,expected){
@@ -43,7 +69,9 @@ function cleanModel(input,editing){
   return {
     code:input.code,name,normalized_name:normal(name),airframe,subtype,
     entry_kind:enumOf(input.entry_kind,["model","generic"]),
-    country:text(input.country,120),manufacturer:text(input.manufacturer,160),
+    use_side:text(input.use_side,100),
+    operating_countries:cleanCountries(input.operating_countries),
+    manufacturer:text(input.manufacturer,160),
     purpose:text(input.purpose,160),note:text(input.note,2000,{multi:true}),
     is_active:active(input.is_active),
     ...(editing?{version:version(input.version)}:{})
@@ -129,13 +157,14 @@ async function modelByCode(DB,code){
 const conflict=()=>fail("Запис змінено в іншій вкладці або його вже немає. Онови картку й повтори дію.",409);
 export async function uavCatalogApi(req,env,user,seg){
   if(user?.role!=="admin"||user.active===0)return fail("Лише адміністратор",403);
-  if(seg.length!==3||!["data","card","history","models","frequencies","materials"].includes(seg[2])){
+  if(seg.length!==3||!["data","card","history","models","frequencies","materials","countries"].includes(seg[2])){
     return fail("Невідомий маршрут",404);
   }
   const section=seg[2],method=req.method;
   if(!(
-    (method==="GET"&&["data","card","history"].includes(section))||
+    (method==="GET"&&["data","card","history","countries"].includes(section))||
     ((method==="POST"||method==="PATCH")&&["models","frequencies","materials"].includes(section))||
+    (method==="POST"&&section==="countries")||
     (method==="DELETE"&&["frequencies","materials"].includes(section))
   ))return fail("Непідтримувана дія",405);
   if(!env.DB)return fail("D1 недоступна",503);
@@ -145,10 +174,18 @@ export async function uavCatalogApi(req,env,user,seg){
     let input;
     try{
       const raw=await body(req);
-      input=section==="models"?cleanModel(raw,method==="PATCH"):
-        section==="frequencies"?cleanRF(raw,method):cleanMaterial(raw,method);
+      if(section==="countries"){
+        keys(raw,["code","name_uk"]);
+        if(typeof raw.code!=="string"||!/^[A-Z]{2}$/.test(raw.code)){
+          throw Error("Потрібен дволітерний код ISO держави (наприклад, UA)");
+        }
+        input={code:raw.code,name_uk:text(raw.name_uk,100,{required:true})};
+      }else{
+        input=section==="models"?cleanModel(raw,method==="PATCH"):
+          section==="frequencies"?cleanRF(raw,method):cleanMaterial(raw,method);
+      }
     }catch(e){return fail(e.message,400)}
-    const trigger=section==="models"?
+    const trigger=section==="countries"?"uav_model_operating_audit_update":section==="models"?
       (method==="POST"?"uav_model_audit_insert":"uav_model_audit_update"):
       section==="frequencies"?"uav_frequency_audit_"+(method==="POST"?"insert":method==="PATCH"?"update":"delete"):
       "uav_material_audit_"+(method==="POST"?"insert":method==="PATCH"?"update":"delete");
@@ -156,24 +193,39 @@ export async function uavCatalogApi(req,env,user,seg){
       if(!await auditReady(env.DB,trigger)){
         return fail("Спочатку застосуй міграцію 0009 довідника БпЛА. Редагування заблоковано.",503);
       }
+      if(section==="countries"){
+        await env.DB.prepare(
+          "INSERT INTO uav_countries(code,name_uk,is_active) VALUES(?,?,1)"
+        ).bind(input.code,input.name_uk).run();
+        return json({saved:true,code:input.code},201);
+      }
+      if(section==="models"&&!await auditReady(env.DB,"uav_model_operating_audit_update")){
+        return fail("Потрібна міграція 0010: країни використання та історія змін",503);
+      }
+      if(section==="models"&&!await verifyCountryCodes(env.DB,input.operating_countries)){
+        return fail("Одна або кілька країн відсутні в довіднику держав",400);
+      }
       const timestamp=new Date().toISOString();
       if(section==="models"){
         if(method==="POST"){
           const id=crypto.randomUUID();
           await env.DB.prepare(
-            "INSERT INTO uav_models (id,code,name,normalized_name,airframe,subtype,entry_kind,country,manufacturer,purpose,note,is_active,created_at,updated_at) "+
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+            "INSERT INTO uav_models (id,code,name,normalized_name,airframe,subtype,entry_kind,country,"+
+            "manufacturer,purpose,note,is_active,use_side,operating_country_codes,created_at,updated_at) "+
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
           ).bind(id,input.code,input.name,input.normalized_name,input.airframe,input.subtype,
-            input.entry_kind,input.country,input.manufacturer,input.purpose,input.note,
-            input.is_active,timestamp,timestamp).run();
+            input.entry_kind,"",input.manufacturer,input.purpose,input.note,
+            input.is_active,input.use_side,JSON.stringify(input.operating_countries),
+            timestamp,timestamp).run();
           return json({saved:true,code:input.code,version:1},201);
         }
         const result=await env.DB.prepare(
           "UPDATE uav_models SET name=?,normalized_name=?,airframe=?,subtype=?,entry_kind=?,"+
-          "country=?,manufacturer=?,purpose=?,note=?,is_active=?,version=version+1,updated_at=? "+
-          "WHERE code=? AND version=?"
+          "manufacturer=?,purpose=?,note=?,is_active=?,use_side=?,operating_country_codes=?,"+
+          "version=version+1,updated_at=? WHERE code=? AND version=?"
         ).bind(input.name,input.normalized_name,input.airframe,input.subtype,input.entry_kind,
-          input.country,input.manufacturer,input.purpose,input.note,input.is_active,
+          input.manufacturer,input.purpose,input.note,input.is_active,
+          input.use_side,JSON.stringify(input.operating_countries),
           timestamp,input.code,input.version).run();
         if(!result.meta?.changes)return conflict();
         return json({saved:true,code:input.code,version:input.version+1});
@@ -236,22 +288,32 @@ export async function uavCatalogApi(req,env,user,seg){
     }
   }
   try{
+    if(section==="countries"){
+      const countries=await env.DB.prepare(
+        "SELECT code,name_uk FROM uav_countries WHERE is_active=1 ORDER BY name_uk COLLATE NOCASE LIMIT 500"
+      ).all();
+      return json({items:countries.results||[]});
+    }
     if(section==="data"){
       const result=await env.DB.prepare(
-        "SELECT m.code,m.name,m.airframe,m.subtype,m.entry_kind,m.country,m.purpose,"+
-        "m.is_active,m.updated_at,"+
+        "SELECT m.code,m.name,m.airframe,m.subtype,m.entry_kind,m.use_side,"+
+        "m.operating_country_codes,m.purpose,m.is_active,m.updated_at,"+
         "(SELECT COUNT(*) FROM uav_frequency_profiles f WHERE f.uav_id=m.id) AS frequency_count,"+
         "(SELECT COUNT(*) FROM uav_materials a WHERE a.uav_id=m.id) AS material_count "+
         "FROM uav_models m ORDER BY m.name COLLATE NOCASE,m.code LIMIT 2001"
       ).all();
       const rows=result.results||[];
-      return json({items:rows.slice(0,2000),truncated:rows.length>2000});
+      return json({items:rows.slice(0,2000).map(r=>({
+        ...r,operating_countries:decodeCountries(r.operating_country_codes),
+        operating_country_codes:undefined
+      })),truncated:rows.length>2000});
     }
     const code=new URL(req.url).searchParams.get("code")||"";
     if(!codeOK(code))return fail("Некоректний код моделі БпЛА",400);
     const model=await env.DB.prepare(
-      "SELECT code,name,airframe,subtype,entry_kind,country,manufacturer,purpose,note,"+
-      "is_active,version,created_at,updated_at FROM uav_models WHERE code=? LIMIT 1"
+      "SELECT code,name,airframe,subtype,entry_kind,use_side,operating_country_codes,"+
+      "manufacturer,purpose,note,is_active,version,created_at,updated_at "+
+      "FROM uav_models WHERE code=? LIMIT 1"
     ).bind(code).first();
     if(!model)return fail("Модель БпЛА не знайдено",404);
     if(section==="history"){
@@ -273,13 +335,15 @@ export async function uavCatalogApi(req,env,user,seg){
       "FROM uav_materials WHERE uav_id=(SELECT id FROM uav_models WHERE code=?) "+
       "ORDER BY title COLLATE NOCASE,id LIMIT 501"
     ).bind(code).all();
-    return json({model,frequencies:(rf.results||[]).slice(0,500),
+    const publicModel={...model,operating_countries:decodeCountries(model.operating_country_codes)};
+    delete publicModel.operating_country_codes;
+    return json({model:publicModel,frequencies:(rf.results||[]).slice(0,500),
       materials:(mats.results||[]).slice(0,500),
       truncated_frequencies:(rf.results||[]).length>500,
       truncated_materials:(mats.results||[]).length>500});
   }catch(e){
-    if(/no such table: uav_/i.test(String(e?.message||""))){
-      return fail("Довідник БпЛА ще не створено. Спочатку застосуй міграцію D1 0009.",503);
+    if(/no such table: uav_|no such column: (use_side|operating_country_codes)/i.test(String(e?.message||""))){
+      return fail("Потрібно застосувати міграції довідника БпЛА D1 (до 0010 включно).",503);
     }
     return fail("Не вдалося прочитати довідник БпЛА з D1",503);
   }
