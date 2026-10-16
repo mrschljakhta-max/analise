@@ -208,6 +208,12 @@ test('catalog responds safely before migration and when there is no database',as
   assert.match((await failed.json()).error,/0009/);
   assert.equal((await uavCatalogApi(new Request(url('data')),{DB:null},admin,segment('data'))).status,503);
 });
+test('wing form permits explicit empty subtype while API validates multirotor subtype',()=>{
+  assert.match(UAV_CATALOG_HTML,/<select id="model-subtype"><option value="">Без підтипу<\/option><\/select>/);
+  assert.doesNotMatch(UAV_CATALOG_HTML,/<select id="model-subtype"[^>]*\srequired(?:\s|>)/);
+  assert.match(UAV_CATALOG_JS,/new Option\('Без підтипу',''\)/);
+  assert.match(UAV_CATALOG_JS,/new Option\('FPV','fpv'\)/);
+});
 test('UI contains four semantic tabs and all three editor forms',()=>{
   for(const tab of ['general','frequencies','materials','history']){
     assert.ok(UAV_CATALOG_HTML.includes('id="tab-'+tab+'"'));
