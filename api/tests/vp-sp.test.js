@@ -15,8 +15,9 @@ const request=(type,action,method,payload,origin="")=>new Request(url(type,actio
 });
 const example=[{source_row:2,kind:"vp",name:"ВП Гвоздь"},
                {source_row:3,kind:"vp",name:"Матє"}];
-function fakeDB({existing=[],trigger=true,change=1,batchFail=false}={}){
- const queries=[],binds=[],batches=[];
+function fakeDB({existing=[],trigger=true,change=1,batchFail=false,
+  batchFailAfterCommit=false,batchChange=2}={}){
+ const queries=[],binds=[],batches=[],persisted=existing.map(x=>({...x}));
  const db={
   prepare(sql){
    queries.push(sql);
@@ -24,7 +25,7 @@ function fakeDB({existing=[],trigger=true,change=1,batchFail=false}={}){
     first:async()=>sql.includes("sqlite_master")?(trigger?{name:"audit"}:null):null,
     all:async()=>{
      if(sql.includes("SELECT kind,normalized_name FROM vp_sp_objects")){
-      return {results:existing};
+      return {results:persisted.map(x=>({...x}))};
      }
      if(sql.includes("FROM vp_sp_audit"))return {results:[]};
      if(sql.includes("FROM vp_sp_objects ORDER BY"))return {results:[]};
@@ -33,13 +34,20 @@ function fakeDB({existing=[],trigger=true,change=1,batchFail=false}={}){
     run:async()=>({meta:{changes:change}})
    };
    return {
-    ...bound,bind(...a){binds.push(a);return bound}
+    ...bound,bind(...a){binds.push(a);return {...bound,__bound:a}}
    };
   },
   async batch(rows){
    batches.push(rows);
    if(batchFail)throw Error("UNIQUE constraint failed");
-   return rows.map(()=>({success:true,meta:{changes:1}}));
+   for(const stmt of rows){
+    assert.ok(Array.isArray(stmt.__bound),"A D1 bound INSERT statement is required");
+    const [, ,kind,,normalized_name]=stmt.__bound;
+    persisted.push({kind,normalized_name});
+   }
+   if(batchFailAfterCommit)throw Error("Simulated transport error after commit");
+   // D1 meta.changes includes each SQL trigger write; it is not exactly 1.
+   return rows.map((_,i)=>({success:true,meta:{changes:batchChange*(i+1)}}));
   }
  };
  return {DB:db,queries,binds,batches};
@@ -141,6 +149,32 @@ test("commit requires matching fingerprint and explicit confirmation",async()=>{
  assert.equal(env.batches.length,1);
  assert.equal(env.batches[0].length,2);
  assert.ok(env.queries.every(sql=>!/\b(mgrs|latitude|longitude|coordinates|unit_id)\b/i.test(sql)));
+});
+test("audit trigger write counts cannot cause a false import failure",async()=>{
+ const env=fakeDB({batchChange:2});
+ const prep=await vpSpImportApi(request("vp-import","prepare","POST",{items:example}),
+  {DB:env.DB},admin,segment("vp-import","prepare"));
+ const {fingerprint}=await prep.json();
+ const committed=await vpSpImportApi(request("vp-import","commit","POST",{
+  items:example,fingerprint,confirm:"IMPORT_VP_SP_NAMES_ONLY"
+ }),{DB:env.DB},admin,segment("vp-import","commit"));
+ assert.equal(committed.status,200);
+ assert.equal((await committed.json()).verified,true);
+ const next=await vpSpImportApi(request("vp-import","prepare","POST",{items:example}),
+  {DB:env.DB},admin,segment("vp-import","prepare"));
+ assert.deepEqual((await next.json()).counts,{input:2,new:0,existing:2});
+});
+test("confirmed D1 data is recognized after a late transport failure, without retrying inserts",async()=>{
+ const env=fakeDB({batchFailAfterCommit:true});
+ const prep=await vpSpImportApi(request("vp-import","prepare","POST",{items:example}),
+  {DB:env.DB},admin,segment("vp-import","prepare"));
+ const {fingerprint}=await prep.json();
+ const result=await vpSpImportApi(request("vp-import","commit","POST",{
+  items:example,fingerprint,confirm:"IMPORT_VP_SP_NAMES_ONLY"
+ }),{DB:env.DB},admin,segment("vp-import","commit"));
+ assert.equal(result.status,200);
+ assert.equal((await result.json()).committed,true);
+ assert.equal(env.batches.length,1);
 });
 test("D1 changes invalidate the prepared fingerprint",async()=>{
  const a=fakeDB();
