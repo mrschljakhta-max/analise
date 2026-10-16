@@ -289,6 +289,15 @@ function appAsset(body, contentType) {
 export default {
   async fetch(req, env) {
     const url=new URL(req.url),seg=url.pathname.split("/").filter(Boolean);
+    // The canonical homepage is the Access-protected dashboard.
+    // A redirect never returns administrative content before authentication.
+    if(req.method==="GET"&&["/","/api","/api/"].includes(url.pathname)){
+      return new Response(null,{status:302,headers:{
+        "location":url.origin+"/api/dashboard",
+        "cache-control":"no-store",
+        "referrer-policy":"no-referrer"
+      }});
+    }
     if (seg[0]!=="api") return error(404,"Не знайдено");
     // Browsers must use same-origin for mutations; no permissive CORS or credentials.
     if (!["GET","HEAD"].includes(req.method)) {
