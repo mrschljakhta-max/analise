@@ -208,7 +208,8 @@ test("UI contains preview, read-only summary and history without upload of sensi
  assert.match(VP_SP_HTML,/ДОВІДНИК_ВП/);
  assert.match(VP_SP_HTML,/ДОВІДНИК_СП/);
  assert.match(VP_SP_CSS,/\.import-metrics/);
- assert.match(VP_SP_JS,/hasUnit/);
+ assert.match(VP_SP_JS,/hasDivision/);
+ assert.match(VP_SP_JS,/дивізіон, колонка/);
  assert.match(VP_SP_JS,/hasMgrs/);
  assert.match(VP_SP_JS,/source_row:x.source_row,name:x.name,kind:x.kind/);
  assert.doesNotMatch(VP_SP_JS,/\.innerHTML\s*=/);
