@@ -1,3 +1,5 @@
+import {GENERIC_PREVIEW_HTML,GENERIC_PREVIEW_CSS} from "./generic-preview-assets.js";
+import {GENERIC_PREVIEW_JS} from "./generic-preview-client.js";
 import {SYNTHETIC_UPLOAD_HTML,SYNTHETIC_UPLOAD_CSS} from "./synthetic-upload-assets.js";
 import {SYNTHETIC_UPLOAD_JS} from "./synthetic-upload-client.js";
 import {syntheticUploadApi} from "./synthetic-upload-api.js";
@@ -321,6 +323,13 @@ export default {
       if(auth.err)return auth.err;
       const user=auth.user;
       // Private working interface: HTML, CSS and JS are all Access-protected.
+      if (["/api/generic-preview","/api/generic-preview.css","/api/generic-preview.js"].includes(url.pathname)) {
+        if(req.method!=="GET")return error(405,"Дозволено лише GET");
+        if(user.role!=="admin")return error(403,"Лише адміністратор");
+        if(url.pathname==="/api/generic-preview")return appAsset(GENERIC_PREVIEW_HTML,"text/html; charset=utf-8");
+        if(url.pathname==="/api/generic-preview.css")return appAsset(GENERIC_PREVIEW_CSS,"text/css; charset=utf-8");
+        return appAsset(GENERIC_PREVIEW_JS,"text/javascript; charset=utf-8");
+      }
       if (["/api/synthetic-upload","/api/synthetic-upload.css","/api/synthetic-upload.js"].includes(url.pathname)) {
         if(req.method!=="GET")return error(405,"Дозволено лише GET");
         if(user.role!=="admin")return error(403,"Лише адміністратор");
