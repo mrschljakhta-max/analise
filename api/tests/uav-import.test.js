@@ -9,11 +9,13 @@ const url=type=>'https://example.test/api/uav-import/'+type;
 const segments=type=>['api','uav-import',type];
 const first={
   source_row:2,code:'UAV-0001',name:'Випробувальна модель',airframe:'wing',subtype:'',
-  entry_kind:'model',country:'',manufacturer:'',purpose:'',note:'',is_active:1
+  entry_kind:'model',country:'',manufacturer:'',purpose:'',note:'',is_active:1,
+  use_side:'Ворог'
 };
 const fpv={
   source_row:17,code:'UAV-0016',name:'FPV',airframe:'multirotor',subtype:'fpv',
-  entry_kind:'generic',country:'',manufacturer:'',purpose:'',note:'',is_active:1
+  entry_kind:'generic',country:'',manufacturer:'',purpose:'',note:'',is_active:1,
+  use_side:''
 };
 const post=(kind,body,origin='')=>new Request(url(kind),{
   method:'POST',headers:{'Content-Type':'application/json',...(origin?{Origin:origin}:{})},
@@ -69,7 +71,7 @@ test('prepare compares against D1 and performs no writes',async()=>{
  assert.equal(result.committed,false);
  assert.match(result.fingerprint,/^[a-f0-9]{64}$/);
  assert.equal(m.batchCalls.length,0);
- assert.equal(m.sql.length,2);
+ assert.equal(m.sql.length,3);
  assert.doesNotMatch(m.sql.join('\n'),/station_location_history|latitude|longitude|jamming|uav_frequency_profiles/);
 });
 test('same code/name already in D1 is skipped, not overwritten',async()=>{
@@ -102,7 +104,9 @@ test('duplicate names/codes and unexpected source fields are rejected',async()=>
    [{...first,airframe:'wing',subtype:'fpv'}],
    [{...fpv,subtype:'optical'}],
    [{...first,is_active:'true'}],
-   [{...first,code:'543',name:''}]
+   [{...first,code:'543',name:''}],
+   [{...first,use_side:'X'.repeat(101)}],
+   [{...first,use_side:'Ворог\nдодаткові дані'}]
  ]){
    const m=db();
    const r=await uavImportApi(post('prepare',{items:invalid}),m.env,admin,segments('prepare'));
@@ -130,6 +134,7 @@ test('commit requires valid fingerprint and explicit confirmation',async()=>{
  assert.equal(m.batchCalls[0].length,1);
  assert.equal(m.bindings.at(-1)[1],first.code);
  assert.equal(m.bindings.at(-1)[4],'wing');
+ assert.equal(m.bindings.at(-1)[12],'Ворог');
  assert.ok(m.sql.some(q=>q.startsWith('INSERT INTO uav_models')));
  assert.ok(m.sql.every(q=>!q.includes('uav_frequency_profiles')));
 });
@@ -181,6 +186,8 @@ test('Excel parser is local; DICT_FPV statistics never become imported models',(
  assert.match(UAV_IMPORT_JS,/id.*uav_code/);
  assert.match(UAV_IMPORT_JS,/new TextDecoder/);
  assert.match(UAV_IMPORT_JS,/getPayload/);
+ assert.match(UAV_IMPORT_JS,/use_side:r.side/);
+ assert.match(UAV_IMPORT_HTML,/Сторона використання/);
  assert.doesNotMatch(UAV_IMPORT_JS,/\.innerHTML\s*=/);
  assert.doesNotThrow(()=>new Function(UAV_IMPORT_JS));
 });
