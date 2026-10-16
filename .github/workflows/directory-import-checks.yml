@@ -8,6 +8,7 @@ on:
       - 'api/src/directory-import-assets.js'
       - 'api/tests/**'
       - 'api/src/synthetic-*'
+      - 'api/src/generic-*'
       - 'api/package.json'
       - 'api/migrations/**'
       - '.github/workflows/directory-import-checks.yml'
