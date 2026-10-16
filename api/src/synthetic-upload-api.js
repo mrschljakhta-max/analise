@@ -4,6 +4,7 @@
 import {unzipSync} from "fflate";
 import {purgatoryApi} from "./purgatory-api.js";
 import {saveSyntheticHistory,syntheticHistoryReady} from "./synthetic-upload-history-api.js";
+import {inspectSyntheticVersions,assertVersionApproval,withSnapshotPlans} from "./synthetic-report-versions.js";
 
 const encoder=new TextDecoder();
 const TEST_ID="demo_quality_labels";
@@ -95,7 +96,7 @@ export function parseSyntheticBundle(bytes,name="synthetic.zip"){
  if(detail.length!==manifest.expected_rows)throw Error("Кількість записів не збігається з тестовою позначкою");
  return [{name:name.split("/").pop(),type:ext,records:detail.length,
   questions:detail.filter(x=>x.status==="review").length,
-  detail,source_id:"synthetic-"+ext+"-2026-10-11",period:"10–11.10.2026"}];
+  detail,source_id:"synthetic-"+ext+"-2026-10-11",period:"10–11.10.2026",report_date:manifest.date}];
 }
 async function seedDemo(DB,user){
  const present=await DB.prepare("SELECT id FROM directory_types WHERE id=? LIMIT 1").bind(TEST_ID).first();
@@ -154,6 +155,7 @@ async function persistDemo(req,env,user,docs){
 export async function syntheticUploadApi(req,env,user){
  if(!user||user.role!=="admin"||user.active!==1)return invalid("Лише адміністратор",403);
  if(req.method!=="POST")return invalid("Дозволено лише POST",405);
+ const mode=new URL(req.url).pathname.endsWith("/inspect")?"inspect":"commit";
  const origin=req.headers.get("origin");
  if(origin&&origin!==new URL(req.url).origin)return invalid("Недозволене джерело",403);
  if(!env.DB)return invalid("D1 недоступна",503);
@@ -171,10 +173,22 @@ export async function syntheticUploadApi(req,env,user){
   if(!await syntheticHistoryReady(env.DB))return invalid("Застосуй міграцію D1 0015",503);
   const buffer=await req.arrayBuffer();if(buffer.byteLength>MAX_FILE)return invalid("Файл перевищує 5 МБ",413);
   const docs=parseSyntheticBundle(new Uint8Array(buffer),name);
+  const plans=await inspectSyntheticVersions(env.DB,docs);
+  if(mode==="inspect")return send({mode:"synthetic_only",documents:plans.map(p=>({
+   kind:p.kind,report_date:p.report_date||null,change:p.change,
+   current_revision:p.current_revision||0,expected_version_id:p.expected_version_id||""
+  }))});
+  let approved;
+  try{
+   approved=JSON.parse(req.headers.get("x-analise-version-approval")||"null");
+   assertVersionApproval(plans,approved);
+  }catch{return invalid("Потрібна попередня перевірка версій або дані застаріли",409)}
+  // Only synthetic test labels and safe snapshots can be persisted.
+  const versionPlans=withSnapshotPlans(plans,docs);
   // Only the fixed synthetic test labels enter D1. No document originals are uploaded to R2.
   const {persisted}=await persistDemo(req,env,user,docs);
-  const history=await saveSyntheticHistory(env.DB,{sessionId,actorId:user.id,uploadName:name,sourceBytes:buffer,documents:docs});
-  return send({mode:"synthetic_only",session_id:history.session_id,documents:docs,accepted:docs.filter(d=>d.type!=="unsupported").length,
+  const history=await saveSyntheticHistory(env.DB,{sessionId,actorId:user.id,uploadName:name,sourceBytes:buffer,documents:docs,versionPlans});
+  return send({mode:"synthetic_only",session_id:history.session_id,versions:history.versions,documents:docs,accepted:docs.filter(d=>d.type!=="unsupported").length,
    errors:docs.filter(d=>d.type==="unsupported").length,
    records:docs.reduce((sum,d)=>sum+d.records,0),
    questions:docs.reduce((sum,d)=>sum+(d.questions||0),0),persisted});
