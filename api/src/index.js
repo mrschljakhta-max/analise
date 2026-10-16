@@ -2,6 +2,7 @@ import {DATABASE_VIEWER_HTML,DATABASE_VIEWER_CSS} from "./database-viewer-assets
 import {DATABASE_VIEWER_JS} from "./database-viewer-client.js";
 import {databaseViewerApi} from "./database-viewer-api.js";
 import {approvedOfficeImportApi} from "./approved-office-import-api.js";
+import {APPROVED_OFFICE_IMPORT_JS} from "./approved-office-import-client.js";
 import {GENERIC_PREVIEW_HTML,GENERIC_PREVIEW_CSS} from "./generic-preview-assets.js";
 import {GENERIC_PREVIEW_JS} from "./generic-preview-client.js";
 import {GENERIC_MAPPING_CORE_JS} from "./generic-mapping-core-assets.js";
@@ -339,12 +340,13 @@ export default {
         return databaseViewerApi(req,env,user,seg);
       if(["/api/approved-import/inspect","/api/approved-import/commit"].includes(url.pathname))
         return approvedOfficeImportApi(req,env,user,seg);
-      if (["/api/generic-preview","/api/generic-preview.css","/api/generic-preview.js","/api/generic-mapping-core.js"].includes(url.pathname)) {
+      if (["/api/generic-preview","/api/generic-preview.css","/api/generic-preview.js","/api/generic-mapping-core.js","/api/approved-office-import.js"].includes(url.pathname)) {
         if(req.method!=="GET")return error(405,"Дозволено лише GET");
         if(user.role!=="admin")return error(403,"Лише адміністратор");
         if(url.pathname==="/api/generic-preview")return appAsset(GENERIC_PREVIEW_HTML,"text/html; charset=utf-8");
         if(url.pathname==="/api/generic-preview.css")return appAsset(GENERIC_PREVIEW_CSS,"text/css; charset=utf-8");
         if(url.pathname==="/api/generic-mapping-core.js")return appAsset(GENERIC_MAPPING_CORE_JS,"text/javascript; charset=utf-8");
+        if(url.pathname==="/api/approved-office-import.js")return appAsset(APPROVED_OFFICE_IMPORT_JS,"text/javascript; charset=utf-8");
         return appAsset(GENERIC_PREVIEW_JS,"text/javascript; charset=utf-8");
       }
       if (["/api/synthetic-upload","/api/synthetic-upload.css","/api/synthetic-upload.js"].includes(url.pathname)) {
