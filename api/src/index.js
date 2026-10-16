@@ -1,3 +1,5 @@
+import { STATION_MODELS_HTML, STATION_MODELS_CSS, STATION_MODELS_JS } from "./station-models-assets.js";
+import { stationModelsApi } from "./station-models-api.js";
 import { STATION_DIRECTORY_HTML, STATION_DIRECTORY_CSS, STATION_DIRECTORY_JS } from "./station-directory-assets.js";
 import { stationDirectoryApi } from "./station-directory-api.js";
 import { STATION_IMPORT_COMMIT_JS } from "./station-import-commit-assets.js";
@@ -292,6 +294,13 @@ export default {
         if(url.pathname==="/api/import.css")return appAsset(IMPORT_CSS,"text/css; charset=utf-8");
         return appAsset(APP_JS, "text/javascript; charset=utf-8");
       }
+      if (["/api/station-models","/api/station-models.js","/api/station-models.css"].includes(url.pathname)) {
+        if(req.method!=="GET")return error(405,"Дозволено лише GET");
+        if(user.role!=="admin")return error(403,"Лише адміністратор");
+        if(url.pathname==="/api/station-models")return appAsset(STATION_MODELS_HTML,"text/html; charset=utf-8");
+        if(url.pathname==="/api/station-models.js")return appAsset(STATION_MODELS_JS,"text/javascript; charset=utf-8");
+        return appAsset(STATION_MODELS_CSS,"text/css; charset=utf-8");
+      }
       if (["/api/station-directory","/api/station-directory.js","/api/station-directory.css"].includes(url.pathname)) {
         if(req.method!=="GET")return error(405,"Дозволено лише GET");
         if(user.role!=="admin")return error(403,"Лише адміністратор");
@@ -349,6 +358,7 @@ export default {
         await env.DB.prepare("SELECT 1 AS ok").first();
         return reply({ok:true,database:true,private_files:!!env.DOCUMENTS,files_enabled:env.FILE_UPLOAD_ENABLED==="true"});
       }
+      if(seg[1]==="station-models")return await stationModelsApi(req,env,user,seg);
       if(seg[1]==="station-directory")return await stationDirectoryApi(req,env,user,seg);
       if(seg[1]==="station-import"){
         if(seg[2]==="preview")return await stationImportApi(req,user,seg);
