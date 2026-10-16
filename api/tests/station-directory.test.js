@@ -139,3 +139,18 @@ test('station detail tabs are present with accessible roles and valid browser sc
   assert.match(STATION_DIRECTORY_JS,/encodeURIComponent/);
   assert.doesNotThrow(()=>new Function(STATION_DIRECTORY_JS));
 });
+
+test('station card heading remains fixed while only active tab body scrolls',()=>{
+  const opening=STATION_DIRECTORY_HTML.indexOf('<div class="card-shell-head">');
+  const heading=STATION_DIRECTORY_HTML.indexOf('class="dialog-top"',opening);
+  const tabs=STATION_DIRECTORY_HTML.indexOf('class="card-tabs"',heading);
+  const scroll=STATION_DIRECTORY_HTML.indexOf('class="card-scroll"',tabs);
+  const general=STATION_DIRECTORY_HTML.indexOf('id="panel-general"',scroll);
+  const history=STATION_DIRECTORY_HTML.indexOf('id="panel-history"',general);
+  assert.ok(opening>=0&&opening<heading&&heading<tabs&&tabs<scroll&&scroll<general&&general<history);
+  assert.match(STATION_DIRECTORY_CSS,/#card\[open\]\s*\{[^}]*display:flex/);
+  assert.match(STATION_DIRECTORY_CSS,/#card \.card-scroll\s*\{[^}]*overflow-y:auto/);
+  assert.match(STATION_DIRECTORY_CSS,/#card \.card-shell-head\s*\{[^}]*flex:0 0 auto/);
+  assert.match(STATION_DIRECTORY_JS,/\$\('card-scroll'\)\.scrollTop=0/);
+  assert.doesNotThrow(()=>new Function(STATION_DIRECTORY_JS));
+});
