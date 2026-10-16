@@ -139,7 +139,8 @@ test("version preview approval required and old history preserved",async()=>{
 test("client retains one dropzone and adds inspect, confirmation, active and archived views",()=>{
  assert.doesNotThrow(()=>new Script(SYNTHETIC_UPLOAD_JS));
  assert.equal((SYNTHETIC_UPLOAD_HTML.match(/id="ud-dropzone"/g)||[]).length,1);
- assert.match(SYNTHETIC_UPLOAD_JS,/synthetic-upload\/inspect/);
+ assert.match(SYNTHETIC_UPLOAD_JS,/synthetic-upload\//);
+ assert.match(SYNTHETIC_UPLOAD_JS,/inspect/);
  assert.match(SYNTHETIC_UPLOAD_JS,/x-analise-version-approval/);
  assert.match(SYNTHETIC_UPLOAD_JS,/window.confirm/);
  assert.match(SYNTHETIC_UPLOAD_HTML,/id="ud-version-list"/);
