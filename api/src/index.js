@@ -2,6 +2,7 @@ import {SYNTHETIC_UPLOAD_HTML,SYNTHETIC_UPLOAD_CSS} from "./synthetic-upload-ass
 import {SYNTHETIC_UPLOAD_JS} from "./synthetic-upload-client.js";
 import {syntheticUploadApi} from "./synthetic-upload-api.js";
 import {syntheticHistoryApi} from "./synthetic-upload-history-api.js";
+import {syntheticVersionsApi} from "./synthetic-report-versions.js";
 import {PURGATORY_HTML,PURGATORY_CSS} from "./purgatory-assets.js";
 import {PURGATORY_JS} from "./purgatory-client.js";
 import {purgatoryApi} from "./purgatory-api.js";
@@ -447,6 +448,8 @@ export default {
         return reply({ok:true,database:true,private_files:!!env.DOCUMENTS,files_enabled:env.FILE_UPLOAD_ENABLED==="true"});
       }
       if(seg[1]==="synthetic-upload"&&seg[2]==="history")return await syntheticHistoryApi(req,env,user,seg);
+      if(seg[1]==="synthetic-upload"&&seg[2]==="versions")return await syntheticVersionsApi(req,env,user,seg);
+      if(url.pathname==="/api/synthetic-upload/inspect")return await syntheticUploadApi(req,env,user);
       if(url.pathname==="/api/synthetic-upload/ingest")return await syntheticUploadApi(req,env,user);
       if(seg[1]==="purgatory")return await purgatoryApi(req,env,user,seg);
       if(seg[1]==="contacts")return await contactApi(req,env,user,seg);
