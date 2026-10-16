@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {stationDirectoryApi} from '../src/station-directory-api.js';
+import {STATION_DIRECTORY_HTML,STATION_DIRECTORY_CSS,STATION_DIRECTORY_JS} from '../src/station-directory-assets.js';
 
 const url='https://example.test/api/station-directory/data';
 const req=method=>new Request(url,{method});
@@ -64,4 +65,77 @@ test('station directory never returns more than 5000 records',async()=>{
   const body=await json(response);
   assert.equal(body.items.length,5000);
   assert.equal(body.truncated,true);
+});
+
+const cardUrl='https://example.test/api/station-directory/card?code=ST-0001';
+const cardSegment=['api','station-directory','card'];
+function detailDb(){
+  const station={
+    station_code:'ST-0001',call_sign:'Тестова станція',is_active:1,
+    station_updated_at:'2026-10-16 07:22:00',station_type_id:'type-uuid',
+    station_type:'Демо',type_code:'STT-0001',type_import_code:'PDR-001',
+    category:'тестова',can_detect:1,can_jam:1,type_is_active:1,
+    type_updated_at:'2026-10-15 11:00:00',
+    org_unit:'Тестовий підрозділ',org_unit_code:'TEST'
+  };
+  const queries=[],params=[];
+  return {queries,params,env:{DB:{prepare(sql){
+    queries.push(sql);
+    if(sql.includes('WHERE s.station_code=?'))return {bind(code){
+      params.push(code);return {first:async()=>code==='ST-0001'?station:null};
+    }};
+    if(sql.includes('FROM station_type_antennas'))return {bind(id){
+      params.push(id);return {all:async()=>({results:[
+        {antenna_kind:'detection',is_active:1},
+        {antenna_kind:'directional_jam',is_active:1}
+      ]})};
+    }};
+    throw Error('Unexpected SQL');
+  }}}};
+}
+
+test('model card exposes only catalog fields and reference completeness',async()=>{
+  const db=detailDb();
+  const res=await stationDirectoryApi(new Request(cardUrl),db.env,user,cardSegment);
+  assert.equal(res.status,200);
+  const body=await res.json();
+  assert.equal(body.station.station_code,'ST-0001');
+  assert.equal(body.station.org_unit_code,'TEST');
+  assert.equal(body.characteristics.length,2);
+  assert.equal(body.history_available,false);
+  assert.equal(body.station.station_type_id,undefined);
+  assert.deepEqual(db.params,['ST-0001','type-uuid']);
+  assert.doesNotMatch(JSON.stringify(body),/latitude|longitude|mgrs|deployment_status|operational_status|freq_from_mhz|radius_km/);
+  assert.doesNotMatch(db.queries.join('\n'),/latitude|longitude|mgrs|deployment_status|operational_status|freq_from_mhz|freq_to_mhz|radius_km|station_location_history/);
+  assert.ok(db.queries.every(sql=>/^\s*SELECT/i.test(sql)));
+});
+
+test('station card rejects bad and unknown station codes',async()=>{
+  const db=detailDb();
+  const bad=await stationDirectoryApi(new Request('https://example.test/api/station-directory/card?code=%20'),
+    db.env,user,cardSegment);
+  assert.equal(bad.status,400);
+  const missing=await stationDirectoryApi(new Request(cardUrl.replace('ST-0001','UNKNOWN')),
+    db.env,user,cardSegment);
+  assert.equal(missing.status,404);
+});
+
+test('station card is admin-only and GET-only',async()=>{
+  const db=detailDb();
+  assert.equal((await stationDirectoryApi(new Request(cardUrl),db.env,{role:'viewer'},cardSegment)).status,403);
+  assert.equal((await stationDirectoryApi(new Request(cardUrl,{method:'POST'}),db.env,user,cardSegment)).status,405);
+  assert.equal(db.queries.length,0);
+});
+
+test('station detail tabs are present with accessible roles and valid browser script',()=>{
+  for(const key of ['general','characteristics','history']){
+    assert.ok(STATION_DIRECTORY_HTML.includes('id="tab-'+key+'"'));
+    assert.ok(STATION_DIRECTORY_HTML.includes('id="panel-'+key+'"'));
+  }
+  assert.match(STATION_DIRECTORY_HTML,/role="tablist"/);
+  assert.match(STATION_DIRECTORY_HTML,/role="tabpanel"/);
+  assert.match(STATION_DIRECTORY_CSS,/\.card-panel\[hidden\]/);
+  assert.match(STATION_DIRECTORY_JS,/cardRequestSerial/);
+  assert.match(STATION_DIRECTORY_JS,/encodeURIComponent/);
+  assert.doesNotThrow(()=>new Function(STATION_DIRECTORY_JS));
 });
