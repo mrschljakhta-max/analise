@@ -8,7 +8,7 @@ const HEADERS={
   "content-security-policy":"default-src 'none'"
 };
 const json=(x,status=200)=>new Response(JSON.stringify(x),{status,headers:HEADERS});
-const count=n=>Number.isSafeInteger(n)&&n>=0?n:0;
+const count=n=>{if(!Number.isSafeInteger(n)||n<0)throw Error("Invalid D1 count");return n;};
 export async function dashboardApi(req,env,user,segments){
   if(segments.length!==3||segments[2]!=="data")return json({error:"Невідомий маршрут"},404);
   if(req.method!=="GET")return json({error:"Дозволено лише GET"},405);
