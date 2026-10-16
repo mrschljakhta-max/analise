@@ -25,6 +25,10 @@ function db({existing=[],trigger=true,batchFails=false}={}){
    prepare(q){
      sql.push(q);
      return {
+       first:async()=>{
+         if(q.includes('sqlite_master'))return trigger?{name:'uav_model_audit_insert'}:null;
+         throw Error('Unexpected .first: '+q);
+       },
        bind(...args){
          bindings.push(args);
          return {first:async()=>{
@@ -133,7 +137,6 @@ test('a modified D1 snapshot invalidates a prepared fingerprint',async()=>{
  const m=db();
  const preview=await uavImportApi(post('prepare',{items:[first]}),m.env,admin,segments('prepare'));
  const {fingerprint}=await preview.json();
- m.env.DB.prepare=('unused'); // the next calls use a separate mock for changed D1
  const changed=db({existing:[{code:'UAV-5555',normalized_name:'інші моделі'}]});
  const result=await uavImportApi(post('commit',{
    items:[first],fingerprint,confirm:'IMPORT_UAV_NEW_ONLY'
