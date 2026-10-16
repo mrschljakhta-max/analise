@@ -36,7 +36,7 @@ function docx(files){
    return {value:paragraphs.length?paragraphs.map(text).join("\n"):text(cell),
     colSpan:count,verticalMerge:!!merge,
     verticalMergeState:merge?(attr(head(merge),"w:val")||attr(head(merge),"val")||"continue"):"none"};
-  }))),merges:[]
+  })),merges:[]
  }));
 }
 function shared(files){return tag(read(files,"xl/sharedStrings.xml"),"si").map(text)}
