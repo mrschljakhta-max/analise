@@ -1,3 +1,7 @@
+import { VP_SP_HTML, VP_SP_CSS } from "./vp-sp-assets.js";
+import { VP_SP_JS } from "./vp-sp-client.js";
+import { vpSpDirectoryApi } from "./vp-sp-directory-api.js";
+import { vpSpImportApi } from "./vp-sp-import-api.js";
 import { UAV_IMPORT_HTML, UAV_IMPORT_CSS } from "./uav-import-assets.js";
 import { UAV_IMPORT_JS } from "./uav-import-client.js";
 import { uavImportApi } from "./uav-import-api.js";
@@ -300,6 +304,13 @@ export default {
         if(url.pathname==="/api/import.css")return appAsset(IMPORT_CSS,"text/css; charset=utf-8");
         return appAsset(APP_JS, "text/javascript; charset=utf-8");
       }
+      if (["/api/vp-directory","/api/vp-directory.js","/api/vp-directory.css"].includes(url.pathname)) {
+        if(req.method!=="GET")return error(405,"Дозволено лише GET");
+        if(user.role!=="admin")return error(403,"Лише адміністратор");
+        if(url.pathname==="/api/vp-directory")return appAsset(VP_SP_HTML,"text/html; charset=utf-8");
+        if(url.pathname==="/api/vp-directory.js")return appAsset(VP_SP_JS,"text/javascript; charset=utf-8");
+        return appAsset(VP_SP_CSS,"text/css; charset=utf-8");
+      }
       if (["/api/uav-import","/api/uav-import.js","/api/uav-import.css"].includes(url.pathname)) {
         if(req.method!=="GET")return error(405,"Дозволено лише GET");
         if(user.role!=="admin")return error(403,"Лише адміністратор");
@@ -378,6 +389,8 @@ export default {
         await env.DB.prepare("SELECT 1 AS ok").first();
         return reply({ok:true,database:true,private_files:!!env.DOCUMENTS,files_enabled:env.FILE_UPLOAD_ENABLED==="true"});
       }
+      if(seg[1]==="vp-import")return await vpSpImportApi(req,env,user,seg);
+      if(seg[1]==="vp-directory")return await vpSpDirectoryApi(req,env,user,seg);
       if(seg[1]==="uav-import")return await uavImportApi(req,env,user,seg);
       if(seg[1]==="uav-catalog")return await uavCatalogApi(req,env,user,seg);
       if(seg[1]==="station-models")return await stationModelsApi(req,env,user,seg);
