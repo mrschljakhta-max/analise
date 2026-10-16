@@ -124,7 +124,7 @@ export async function vpSpImportApi(req,env,user,segments){
    if(saved.length===fresh.length){
     return reply({ok:true,counts,committed:true,verified:true});
    }
-   if(batchError){
+   if(batchError&&typeof console!=="undefined"){
     console.error("VP/SP name batch not verified",{
      statementCount:queries.length,errorType:batchError?.name||"D1Error",
      persistedCount:saved.length
@@ -134,9 +134,11 @@ export async function vpSpImportApi(req,env,user,segments){
      "Частина назв присутня в D1. Онови довідник і повтори порівняння перед наступною спробою.":
      "D1 не підтвердила нові назви. Онови довідник і повтори порівняння.",409);
   }catch(e){
-   console.error("VP/SP names post-commit verification failed",{
-    statementCount:queries.length,errorType:e?.name||"D1Error"
-   });
+   if(typeof console!=="undefined"){
+    console.error("VP/SP names post-commit verification failed",{
+     statementCount:queries.length,errorType:e?.name||"D1Error"
+    });
+   }
    return fail("Не вдалося перевірити результат у D1. Онови довідник і повтори порівняння.",503);
   }
  }catch(e){
