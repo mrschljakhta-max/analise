@@ -1,5 +1,6 @@
 import { VP_SP_HTML, VP_SP_CSS } from "./vp-sp-assets.js";
 import { VP_SP_JS } from "./vp-sp-client.js";
+import { VP_SP_EXPORT_JS } from "./vp-sp-export-assets.js";
 import { vpSpDirectoryApi } from "./vp-sp-directory-api.js";
 import { vpSpImportApi } from "./vp-sp-import-api.js";
 import { UAV_IMPORT_HTML, UAV_IMPORT_CSS } from "./uav-import-assets.js";
@@ -304,11 +305,12 @@ export default {
         if(url.pathname==="/api/import.css")return appAsset(IMPORT_CSS,"text/css; charset=utf-8");
         return appAsset(APP_JS, "text/javascript; charset=utf-8");
       }
-      if (["/api/vp-directory","/api/vp-directory.js","/api/vp-directory.css"].includes(url.pathname)) {
+      if (["/api/vp-directory","/api/vp-directory.js","/api/vp-directory.css","/api/vp-export.js"].includes(url.pathname)) {
         if(req.method!=="GET")return error(405,"Дозволено лише GET");
         if(user.role!=="admin")return error(403,"Лише адміністратор");
         if(url.pathname==="/api/vp-directory")return appAsset(VP_SP_HTML,"text/html; charset=utf-8");
         if(url.pathname==="/api/vp-directory.js")return appAsset(VP_SP_JS,"text/javascript; charset=utf-8");
+        if(url.pathname==="/api/vp-export.js")return appAsset(VP_SP_EXPORT_JS,"text/javascript; charset=utf-8");
         return appAsset(VP_SP_CSS,"text/css; charset=utf-8");
       }
       if (["/api/uav-import","/api/uav-import.js","/api/uav-import.css"].includes(url.pathname)) {
