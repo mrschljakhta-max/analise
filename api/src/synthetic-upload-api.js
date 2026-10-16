@@ -3,6 +3,7 @@
 // Original bytes are inspected in memory and discarded; only fictional spelling errors enter D1.
 import {unzipSync} from "fflate";
 import {purgatoryApi} from "./purgatory-api.js";
+import {saveSyntheticHistory,syntheticHistoryReady} from "./synthetic-upload-history-api.js";
 
 const encoder=new TextDecoder();
 const TEST_ID="demo_quality_labels";
@@ -159,14 +160,21 @@ export async function syntheticUploadApi(req,env,user){
  if(!["application/octet-stream","application/zip"].includes((req.headers.get("content-type")||"").split(";")[0]))
   return invalid("Очікується бінарний файл");
  if(Number(req.headers.get("content-length")||0)>MAX_FILE)return invalid("Файл перевищує 5 МБ",413);
- const name=new URL(req.url).searchParams.get("name")||"";
+ const params=new URL(req.url).searchParams;
+ const name=params.get("name")||"";
+ const suppliedSession=params.get("session");
+ if(suppliedSession && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(suppliedSession))
+  return invalid("Некоректний ідентифікатор сеансу");
+ const sessionId=suppliedSession||crypto.randomUUID();
  if(!/^[\p{L}\p{N} _.()\-]{1,160}\.(docx|xlsx|zip)$/iu.test(name))return invalid("Некоректне ім'я файла");
  try{
+  if(!await syntheticHistoryReady(env.DB))return invalid("Застосуй міграцію D1 0015",503);
   const buffer=await req.arrayBuffer();if(buffer.byteLength>MAX_FILE)return invalid("Файл перевищує 5 МБ",413);
   const docs=parseSyntheticBundle(new Uint8Array(buffer),name);
   // Only the fixed synthetic test labels enter D1. No document originals are uploaded to R2.
   const {persisted}=await persistDemo(req,env,user,docs);
-  return send({mode:"synthetic_only",documents:docs,accepted:docs.filter(d=>d.type!=="unsupported").length,
+  const history=await saveSyntheticHistory(env.DB,{sessionId,actorId:user.id,uploadName:name,sourceBytes:buffer,documents:docs});
+  return send({mode:"synthetic_only",session_id:history.session_id,documents:docs,accepted:docs.filter(d=>d.type!=="unsupported").length,
    errors:docs.filter(d=>d.type==="unsupported").length,
    records:docs.reduce((sum,d)=>sum+d.records,0),
    questions:docs.reduce((sum,d)=>sum+(d.questions||0),0),persisted});
