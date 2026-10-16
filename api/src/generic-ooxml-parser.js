@@ -70,7 +70,7 @@ function excelDate(value,date1904){
  const day=Math.floor(n),fract=n-day;
  if(!date1904&&day===60)return "1900-02-29";
  const epoch=Date.UTC(date1904?1904:1899,date1904?0:11,date1904?1:30);
- const adjusted=date1904?day:day<60?day:day-1;
+ const adjusted=date1904?day:day<60?day+1:day;
  const date=new Date(epoch+adjusted*86400000+Math.round(fract*86400000));
  const result=date.toISOString();
  return fract?result.slice(0,19).replace("T"," "):result.slice(0,10);
