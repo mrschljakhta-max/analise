@@ -194,8 +194,11 @@ export async function syntheticUploadApi(req,env,user){
    questions:docs.reduce((sum,d)=>sum+(d.questions||0),0),persisted});
  }catch(e){
   const msg=String(e?.message||"Помилка");
+  if(/Stale demo report version|UNIQUE constraint failed: demo_report_versions\.kind/.test(msg))
+   return invalid("Звіт оновив інший оператор. Повтори перевірку перед заміною.",409);
+  if(msg.includes("Застосуй міграцію D1 0016"))return invalid(msg,503);
   // No personal, operational or file contents are logged or returned.
-  if(/синтетичн|Непідтримув|Структура|Архів|Файл|Документ|Книга|тестов|позначк|Очікується|Неправильний|Кількість|ліміт|забагато|збігається/.test(msg))
+  if(/синтетичн|Непідтримув|Структура|Архів|Файл|Документ|Книга|тестов|позначк|Очікується|Неправильний|Кількість|ліміт|забагато|збігається|одного виду|звітну дату/.test(msg))
    return invalid(msg);
   return invalid("Не вдалося обробити тестовий документ",503);
  }
