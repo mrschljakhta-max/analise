@@ -1,3 +1,7 @@
+import { CONTACT_HTML,CONTACT_CSS } from "./contact-assets.js";
+import { CONTACT_JS } from "./contact-client.js";
+import { CONTACT_IMPORT_JS } from "./contact-import-client.js";
+import { contactApi } from "./contact-api.js";
 import { DASHBOARD_HTML,DASHBOARD_CSS,DASHBOARD_JS } from "./dashboard-assets.js";
 import { GLOBAL_NAV_CSS,GLOBAL_NAV_JS } from "./global-navigation-assets.js";
 import { dashboardApi } from "./dashboard-api.js";
@@ -309,6 +313,14 @@ export default {
       if(auth.err)return auth.err;
       const user=auth.user;
       // Private working interface: HTML, CSS and JS are all Access-protected.
+      if (["/api/contacts","/api/contacts.css","/api/contacts.js","/api/contacts-import.js"].includes(url.pathname)) {
+        if(req.method!=="GET")return error(405,"Дозволено лише GET");
+        if(user.role!=="admin")return error(403,"Лише адміністратор");
+        if(url.pathname==="/api/contacts")return appAsset(CONTACT_HTML,"text/html; charset=utf-8");
+        if(url.pathname==="/api/contacts.css")return appAsset(CONTACT_CSS,"text/css; charset=utf-8");
+        if(url.pathname==="/api/contacts.js")return appAsset(CONTACT_JS,"text/javascript; charset=utf-8");
+        return appAsset(CONTACT_IMPORT_JS,"text/javascript; charset=utf-8");
+      }
       if (["/api/dashboard","/api/dashboard.css","/api/dashboard.js",
            "/api/global-nav.css","/api/global-nav.js"].includes(url.pathname)) {
         if(req.method!=="GET")return error(405,"Дозволено лише GET");
@@ -413,6 +425,7 @@ export default {
         await env.DB.prepare("SELECT 1 AS ok").first();
         return reply({ok:true,database:true,private_files:!!env.DOCUMENTS,files_enabled:env.FILE_UPLOAD_ENABLED==="true"});
       }
+      if(seg[1]==="contacts")return await contactApi(req,env,user,seg);
       if(seg[1]==="vp-import")return await vpSpImportApi(req,env,user,seg);
       if(seg[1]==="vp-directory")return await vpSpDirectoryApi(req,env,user,seg);
       if(seg[1]==="uav-import")return await uavImportApi(req,env,user,seg);
