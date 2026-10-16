@@ -45,7 +45,7 @@ async function parseEdit(req){
 
 export async function stationDirectoryApi(req,env,user,segments){
   if(user?.role!=="admin"||user.active===0)return json({error:"Лише адміністратор"},403);
-  if(segments.length!==3||!["data","card","units"].includes(segments[2]))
+  if(segments.length!==3||!["data","card","units","history"].includes(segments[2]))
     return json({error:"Невідомий маршрут"},404);
   const section=segments[2];
   if(!((req.method==="GET")||(req.method==="PATCH"&&section==="card")))
@@ -59,6 +59,14 @@ export async function stationDirectoryApi(req,env,user,segments){
     if(parsed.error)return json({error:parsed.error},400);
     const input=parsed.value;
     try{
+      // Every successful administrative edit must be auditable.
+      // Until migration 0008 is applied, fail closed rather than silently lose history.
+      const auditTrigger=await env.DB.prepare(
+        "SELECT name FROM sqlite_master WHERE type='trigger' AND name='station_accounting_audit_after_update' LIMIT 1"
+      ).first();
+      if(!auditTrigger)return json({
+        error:"Спочатку застосуй міграцію журналу обліку станцій у D1. До цього редагування заблоковано."
+      },503);
       if(input.org_unit_id!==null){
         const unit=await env.DB.prepare(
           "SELECT id FROM org_units WHERE id=? AND is_active=1 LIMIT 1"
@@ -89,6 +97,30 @@ export async function stationDirectoryApi(req,env,user,segments){
   }
 
   try{
+    if(section==="history"){
+      const code=new URL(req.url).searchParams.get("code")?.trim()||"";
+      if(!isValidCode(code))return json({error:"Некоректний код станції"},400);
+      const station=await env.DB.prepare(
+        "SELECT id FROM stations WHERE station_code=? LIMIT 1"
+      ).bind(code).first();
+      if(!station)return json({error:"Станцію не знайдено"},404);
+      try{
+        const events=await env.DB.prepare(
+          "SELECT changed_at,old_call_sign,new_call_sign,"+
+          "old_org_unit_label,new_org_unit_label,"+
+          "old_is_active,new_is_active "+
+          "FROM station_accounting_audit WHERE station_code=? "+
+          "ORDER BY id DESC LIMIT 101"
+        ).bind(code).all();
+        const rows=events.results||[];
+        return json({history_available:true,items:rows.slice(0,100),truncated:rows.length>100});
+      }catch(e){
+        if(/no such table: station_accounting_audit/i.test(String(e?.message||e))){
+          return json({history_available:false,items:[],truncated:false});
+        }
+        throw e;
+      }
+    }
     if(section==="units"){
       const rows=await env.DB.prepare(
         "SELECT id,unit_code,short_name,full_name FROM org_units "+
@@ -138,8 +170,7 @@ export async function stationDirectoryApi(req,env,user,segments){
         WHEN 'omni_jam' THEN 3 ELSE 4 END
     `).bind(station.station_type_id).all();
     const {station_type_id,...publicStation}=station;
-    return json({station:publicStation,characteristics:characteristics.results||[],
-      history_available:false});
+    return json({station:publicStation,characteristics:characteristics.results||[]});
   }catch{
     return json({error:"Не вдалося прочитати обліковий довідник D1"},503);
   }
