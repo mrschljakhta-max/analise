@@ -22,7 +22,7 @@ const url="https://example.test/api/dashboard/data";
 const seg=["api","dashboard","data"];
 const counts={
   settlements:3975,org_units:34,stations:24,station_models:6,
-  uav_models:18,vp:34,sp:0
+  uav_models:18,vp:34,sp:0,contacts:34
 };
 function db(row=counts){
   let calls=0;
