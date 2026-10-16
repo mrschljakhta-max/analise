@@ -27,7 +27,8 @@ export async function dashboardApi(req,env,user,segments){
       "(SELECT COUNT(*) FROM station_types) AS station_models,"+
       "(SELECT COUNT(*) FROM uav_models) AS uav_models,"+
       "(SELECT COUNT(*) FROM vp_sp_objects WHERE kind='vp') AS vp,"+
-      "(SELECT COUNT(*) FROM vp_sp_objects WHERE kind='sp') AS sp"
+      "(SELECT COUNT(*) FROM vp_sp_objects WHERE kind='sp') AS sp,"+
+      "(SELECT COUNT(*) FROM contacts) AS contacts"
     ).first();
     if(!row)return json({error:"Не вдалося отримати підсумок"},503);
     return json({
@@ -39,7 +40,8 @@ export async function dashboardApi(req,env,user,segments){
         station_models:count(row.station_models),
         uav_models:count(row.uav_models),
         vp:count(row.vp),
-        sp:count(row.sp)
+        sp:count(row.sp),
+        contacts:count(row.contacts)
       },
       generated_at:new Date().toISOString()
     });
