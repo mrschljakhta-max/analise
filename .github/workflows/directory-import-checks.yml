@@ -9,6 +9,8 @@ on:
       - 'api/tests/**'
       - 'api/src/synthetic-*'
       - 'api/src/generic-*'
+      - 'api/src/database-*'
+      - 'api/src/global-navigation-assets.js'
       - 'api/package.json'
       - 'api/migrations/**'
       - '.github/workflows/directory-import-checks.yml'
