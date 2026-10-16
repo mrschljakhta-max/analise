@@ -103,15 +103,41 @@ export async function vpSpImportApi(req,env,user,segments){
     "VALUES (?,?,?,?,?,?,?,?)"
    ).bind(crypto.randomUUID(),code,x.kind,x.name,x.normalized_name,1,now,now);
   });
+  // D1 meta.changes includes audit-trigger writes and is not a per-row
+  // insert count. Never return a false failure after a successful commit.
+  let batchError=null;
   try{
    const result=await env.DB.batch(queries);
    if(!Array.isArray(result)||result.length!==queries.length||
-    result.some(x=>x.success===false||x.meta?.changes!==1)){
-    throw Error("Неповна транзакція");
+    result.some(x=>x?.success===false)){
+    batchError=Error("Unexpected D1 batch response");
    }
-   return reply({ok:true,counts,committed:true});
-  }catch{
-   return fail("Не вдалося завершити транзакцію. Перевір D1 та повтори порівняння.",409);
+  }catch(e){
+   batchError=e;
+  }
+  // Read back the names from D1 to disambiguate committed and rolled-back
+  // batches even if the D1 response was unexpected.
+  try{
+   const after=await snapshot(env.DB);
+   const persisted=new Set(after.map(x=>x.kind+String.fromCharCode(0)+x.normalized_name));
+   const saved=fresh.filter(x=>persisted.has(x.kind+String.fromCharCode(0)+x.normalized_name));
+   if(saved.length===fresh.length){
+    return reply({ok:true,counts,committed:true,verified:true});
+   }
+   if(batchError){
+    console.error("VP/SP name batch not verified",{
+     statementCount:queries.length,errorType:batchError?.name||"D1Error",
+     persistedCount:saved.length
+    });
+   }
+   return fail(saved.length>0?
+     "Частина назв присутня в D1. Онови довідник і повтори порівняння перед наступною спробою.":
+     "D1 не підтвердила нові назви. Онови довідник і повтори порівняння.",409);
+  }catch(e){
+   console.error("VP/SP names post-commit verification failed",{
+    statementCount:queries.length,errorType:e?.name||"D1Error"
+   });
+   return fail("Не вдалося перевірити результат у D1. Онови довідник і повтори порівняння.",503);
   }
  }catch(e){
   if(/no such table: vp_sp_/i.test(String(e?.message||"")))return fail("Спочатку застосуй міграцію D1 0011",503);
