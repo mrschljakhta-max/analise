@@ -61,8 +61,8 @@ test("only approved datasets are cataloged; real records are never in the listin
   const r=await call(db,"catalog");assert.equal(r.status,200);
   const data=await r.json(),sets=Object.fromEntries(data.datasets.map(x=>[x.id,x]));
   assert.equal(data.mode,"read_only");
-  assert.equal(data.datasets.length,7);
-  assert.equal(databaseViewerDatasets().length,7);
+  assert.equal(data.datasets.length,9);
+  assert.equal(databaseViewerDatasets().length,9);
   assert.equal(sets.directories.count,2);
   assert.equal(sets.demo_labels.count,1);
   assert.equal(sets.demo_occurrences.count,1);
