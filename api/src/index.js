@@ -1,3 +1,6 @@
+import {DATABASE_VIEWER_HTML,DATABASE_VIEWER_CSS} from "./database-viewer-assets.js";
+import {DATABASE_VIEWER_JS} from "./database-viewer-client.js";
+import {databaseViewerApi} from "./database-viewer-api.js";
 import {GENERIC_PREVIEW_HTML,GENERIC_PREVIEW_CSS} from "./generic-preview-assets.js";
 import {GENERIC_PREVIEW_JS} from "./generic-preview-client.js";
 import {GENERIC_MAPPING_CORE_JS} from "./generic-mapping-core-assets.js";
@@ -324,6 +327,15 @@ export default {
       if(auth.err)return auth.err;
       const user=auth.user;
       // Private working interface: HTML, CSS and JS are all Access-protected.
+      if (["/api/database-viewer","/api/database-viewer.css","/api/database-viewer.js"].includes(url.pathname)) {
+        if(req.method!=="GET")return error(405,"Лише перегляд GET");
+        if(user.role!=="admin")return error(403,"Лише адміністратор");
+        if(url.pathname==="/api/database-viewer")return appAsset(DATABASE_VIEWER_HTML,"text/html; charset=utf-8");
+        if(url.pathname==="/api/database-viewer.css")return appAsset(DATABASE_VIEWER_CSS,"text/css; charset=utf-8");
+        return appAsset(DATABASE_VIEWER_JS,"text/javascript; charset=utf-8");
+      }
+      if(["/api/database-viewer/catalog","/api/database-viewer/data"].includes(url.pathname))
+        return databaseViewerApi(req,env,user,seg);
       if (["/api/generic-preview","/api/generic-preview.css","/api/generic-preview.js","/api/generic-mapping-core.js"].includes(url.pathname)) {
         if(req.method!=="GET")return error(405,"Дозволено лише GET");
         if(user.role!=="admin")return error(403,"Лише адміністратор");
