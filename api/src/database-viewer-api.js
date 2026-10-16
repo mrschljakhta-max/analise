@@ -14,6 +14,37 @@ const LABELS="('Альфа-демо','Альфа деммo','Бета-демо',
 const SORTS=Object.freeze(["recent","oldest","name"]);
 const ROWS_PER_PAGE=25;
 const defs=Object.freeze({
+ office_inventory:{
+  title:"Канцелярія · Облік",subtitle:"Цивільний облік офісного приладдя з підтверджених імпортів.",
+  required:["civil_office_items"],from:"civil_office_items i",
+  where:"i.item_code IN ('paper_a4','pen','pencil','notebook','folder','paperclips','sticky_notes','envelope','glue','marker')",id:"i.id",
+  select:"i.id,i.item_code,i.stock_date,i.quantity,"+
+   "i.unit_price_cents/100.0 AS unit_price,i.source_row,i.batch_id,i.created_at,"+
+   "CASE i.item_code "+
+   "WHEN 'paper_a4' THEN 'Папір А4' WHEN 'pen' THEN 'Ручка' WHEN 'pencil' THEN 'Олівець' "+
+   "WHEN 'notebook' THEN 'Зошит' WHEN 'folder' THEN 'Папка' WHEN 'paperclips' THEN 'Скріпки' "+
+   "WHEN 'sticky_notes' THEN 'Стікери' WHEN 'envelope' THEN 'Конверт' WHEN 'glue' THEN 'Клей' "+
+   "WHEN 'marker' THEN 'Маркер' END AS item_name",
+  search:["i.stock_date","i.item_code","CASE i.item_code WHEN 'paper_a4' THEN 'Папір А4' "+
+   "WHEN 'pen' THEN 'Ручка' WHEN 'pencil' THEN 'Олівець' WHEN 'notebook' THEN 'Зошит' "+
+   "WHEN 'folder' THEN 'Папка' WHEN 'paperclips' THEN 'Скріпки' WHEN 'sticky_notes' THEN 'Стікери' "+
+   "WHEN 'envelope' THEN 'Конверт' WHEN 'glue' THEN 'Клей' WHEN 'marker' THEN 'Маркер' END"],
+  order:{recent:"i.stock_date DESC,i.item_code",oldest:"i.stock_date ASC,i.item_code",
+   name:"i.item_code ASC,i.stock_date DESC"},
+  columns:[["item_name","Товар"],["stock_date","Дата обліку"],["quantity","Кількість"],["unit_price","Ціна за од., грн"]],
+  filters:{all:"1=1"}
+ },
+ office_imports:{
+  title:"Канцелярія · Імпорти",subtitle:"Підтверджені імпорти та кількість записаних рядків.",
+  required:["civil_office_imports","civil_office_items"],from:"civil_office_imports b",
+  where:"b.schema_code='office_inventory_v1'",id:"b.id",
+  select:"b.id,b.schema_code,b.submitted_count,b.created_at,"+
+   "(SELECT COUNT(*) FROM civil_office_items i WHERE i.batch_id=b.id) AS new_count",
+  search:["b.id","b.created_at"],
+  order:{recent:"b.created_at DESC,b.id",oldest:"b.created_at ASC,b.id",name:"b.id ASC"},
+  columns:[["created_at","Час імпорту"],["submitted_count","Рядків у запиті"],["new_count","Нових записів"]],
+  filters:{all:"1=1"}
+ },
  directories:{
   title:"Каталог довідників",subtitle:"Назви та версії довідників. Записи інших довідників відкривай у спеціалізованих розділах.",
   required:["directory_types"],from:"directory_types d",where:"1=1",id:"d.id",
@@ -136,7 +167,7 @@ async function availableTables(db){
  const data=await db.prepare(
   "SELECT name FROM sqlite_master WHERE type='table' AND name IN "+
   "('directory_types','directory_entries','dq_occurrences','dq_rules',"+
-  "'demo_import_sessions','demo_import_documents','demo_report_versions','demo_report_active')"
+  "'demo_import_sessions','demo_import_documents','demo_report_versions','demo_report_active','civil_office_imports','civil_office_items')"
  ).all();
  return new Set((data.results||[]).map(x=>x.name));
 }
