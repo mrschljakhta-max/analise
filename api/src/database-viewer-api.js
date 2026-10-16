@@ -38,7 +38,7 @@ const defs=Object.freeze({
  demo_occurrences:{
   title:"Входження «Чистилища»",subtitle:"Лише тестові входження, включно з уже виправленими.",
   required:["dq_occurrences"],from:"dq_occurrences o",
-  where:"o.directory_id='demo_quality_labels' AND o.raw_value IN "+LABELS,id:"o.id",
+  where:"o.directory_id='demo_quality_labels' AND o.source_id IN ('synthetic-docx-2026-10-11','synthetic-xlsx-2026-10-11') AND o.raw_value IN "+LABELS,id:"o.id",
   select:"o.id,o.raw_value,o.status,o.resolution_origin,o.active,o.source_ref,o.created_at,o.updated_at",
   search:["o.raw_value","o.source_ref"],order:{
    recent:"o.updated_at DESC,o.id",oldest:"o.updated_at ASC,o.id",
@@ -116,12 +116,16 @@ const paramsCheck=p=>{
  if(!SORTS.includes(sort))throw Error("Непідтримуване сортування");
  return {q,offset:Number(offsetStr),sort,filter:p.get("filter")||"all"};
 };
-const pattern=q=>"%"+q.toLowerCase().replace(/[\\%_]/g,c=>"\\"+c)+"%";
+const pattern=q=>"%"+q.replace(/[\\%_]/g,c=>"\\"+c)+"%";
+const titleCase=q=>{
+ const lower=q.toLocaleLowerCase("uk-UA");
+ return lower.slice(0,1).toLocaleUpperCase("uk-UA")+lower.slice(1);
+};
 function listing(d,{q,offset,sort,filter}){
  const where=d.where+" AND ("+d.filters[filter]+")";
- const search=" AND ("+d.search.map(x=>"LOWER("+x+") LIKE ? ESCAPE '\\'").join(" OR ")+")";
+ const search=" AND ("+d.search.map(x=>"(LOWER("+x+") LIKE ? ESCAPE '\\' OR "+x+" LIKE ? ESCAPE '\\')").join(" OR ")+")";
  const sqlBase=" FROM "+d.from+" WHERE "+where+search;
- const binds=d.search.map(()=>pattern(q));
+ const binds=d.search.flatMap(()=>[pattern(q.toLocaleLowerCase("uk-UA")),pattern(titleCase(q))]);
  return {
   count:"SELECT COUNT(*) AS n"+sqlBase,
   query:"SELECT "+d.select+sqlBase+" ORDER BY "+d.order[sort]+" LIMIT 26 OFFSET ?",
