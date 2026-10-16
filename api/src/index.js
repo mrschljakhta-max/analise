@@ -1,3 +1,6 @@
+import { DASHBOARD_HTML,DASHBOARD_CSS,DASHBOARD_JS } from "./dashboard-assets.js";
+import { GLOBAL_NAV_CSS,GLOBAL_NAV_JS } from "./global-navigation-assets.js";
+import { dashboardApi } from "./dashboard-api.js";
 import { VP_SP_HTML, VP_SP_CSS } from "./vp-sp-assets.js";
 import { VP_SP_JS } from "./vp-sp-client.js";
 import { VP_SP_EXPORT_JS } from "./vp-sp-export-assets.js";
@@ -297,6 +300,15 @@ export default {
       if(auth.err)return auth.err;
       const user=auth.user;
       // Private working interface: HTML, CSS and JS are all Access-protected.
+      if (["/api/dashboard","/api/dashboard.css","/api/dashboard.js",
+           "/api/global-nav.css","/api/global-nav.js"].includes(url.pathname)) {
+        if(req.method!=="GET")return error(405,"Дозволено лише GET");
+        if(url.pathname==="/api/dashboard")return appAsset(DASHBOARD_HTML,"text/html; charset=utf-8");
+        if(url.pathname==="/api/dashboard.css")return appAsset(DASHBOARD_CSS,"text/css; charset=utf-8");
+        if(url.pathname==="/api/dashboard.js")return appAsset(DASHBOARD_JS,"text/javascript; charset=utf-8");
+        if(url.pathname==="/api/global-nav.css")return appAsset(GLOBAL_NAV_CSS,"text/css; charset=utf-8");
+        return appAsset(GLOBAL_NAV_JS,"text/javascript; charset=utf-8");
+      }
       if (["/api/app","/api/app.css","/api/app.js","/api/import.js","/api/import.css"].includes(url.pathname)) {
         if (req.method !== "GET") return error(405, "Дозволено лише GET");
         if (url.pathname === "/api/app") return appAsset(APP_HTML, "text/html; charset=utf-8");
@@ -386,6 +398,7 @@ export default {
         if (url.pathname === "/api/test.js") return testAsset(TEST_JS, "text/javascript; charset=utf-8", "default-src 'none'");
         return testAsset(TEST_CSS, "text/css; charset=utf-8", "default-src 'none'");
       }
+      if(url.pathname==="/api/dashboard/data")return await dashboardApi(req,env,user,seg);
       if(url.pathname==="/api/me"&&req.method==="GET")return reply({id:user.id,email:user.email,role:user.role});
       if(url.pathname==="/api/health"&&req.method==="GET"){
         await env.DB.prepare("SELECT 1 AS ok").first();
