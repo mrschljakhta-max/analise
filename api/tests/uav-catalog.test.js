@@ -14,7 +14,7 @@ const req=(name,method,body,origin)=>{
 };
 const model={
   code:'UAV-0001',name:'Тестова модель',airframe:'multirotor',subtype:'fpv',
-  entry_kind:'generic',country:'',manufacturer:'',purpose:'Навчальний зразок',
+  entry_kind:'generic',use_side:'',operating_countries:[],manufacturer:'',purpose:'Навчальний зразок',
   note:'Тільки тестові дані',is_active:1
 };
 const profile={
@@ -26,7 +26,7 @@ const material={
   code:'UAV-0001',title:'Навчальне фото',kind:'image',
   url:'https://example.com/image.png',note:'Тест'
 };
-function db({trigger=true,changes=1,exists=true,tableAbsent=false}={}){
+function db({trigger=true,changes=1,exists=true,tableAbsent=false,validCountryCodes=[]}={}){
   const queries=[],bindings=[];
   const prepare=sql=>{
     queries.push(sql);
@@ -40,7 +40,8 @@ function db({trigger=true,changes=1,exists=true,tableAbsent=false}={}){
             if(sql.includes('SELECT id FROM uav_models'))return {id:'uav-test-id'};
             if(sql.includes('SELECT code,name,airframe'))return {
               code:'UAV-0001',name:'Тестова модель',airframe:'multirotor',subtype:'fpv',
-              entry_kind:'generic',country:'',manufacturer:'',purpose:'Навчальний зразок',
+              entry_kind:'generic',use_side:'Ворог',operating_country_codes:'["UA","PL"]',
+              manufacturer:'',purpose:'Навчальний зразок',
               note:'',is_active:1,version:1,created_at:'2026-10-16 09:00:00',
               updated_at:'2026-10-16 09:00:00'
             };
@@ -48,6 +49,9 @@ function db({trigger=true,changes=1,exists=true,tableAbsent=false}={}){
           },
           all:async()=>{
             if(tableAbsent)throw Error('D1_ERROR: no such table: uav_models');
+            if(sql.includes('FROM uav_countries WHERE is_active=1 AND code IN')){
+              return {results:validCountryCodes.map(code=>({code}))};
+            }
             if(sql.includes('FROM uav_catalog_audit'))return {results:[{
               section:'general',action:'created',old_json:null,
               new_json:'{"name":"Тестова модель"}',changed_at:'2026-10-16 09:00:00'
@@ -63,9 +67,13 @@ function db({trigger=true,changes=1,exists=true,tableAbsent=false}={}){
       },
       all:async()=>{
         if(tableAbsent)throw Error('D1_ERROR: no such table: uav_models');
+        if(sql.includes('FROM uav_countries'))return {results:[
+          {code:'PL',name_uk:'Польща'},{code:'UA',name_uk:'Україна'}
+        ]};
         return {results:[{
           code:'UAV-0001',name:'Тестова модель',airframe:'multirotor',subtype:'fpv',
-          entry_kind:'generic',is_active:1,frequency_count:2,material_count:0
+          entry_kind:'generic',use_side:'Ворог',operating_country_codes:'["UA","PL"]',
+          is_active:1,frequency_count:2,material_count:0
         }]};
       }
     };
@@ -100,10 +108,10 @@ test('POST model is audited and preserves wing/multirotor classification',async(
   assert.equal(response.status,201);
   assert.equal((await response.json()).version,1);
   assert.match(d.queries[0],/sqlite_master/);
-  assert.match(d.queries[1],/^INSERT INTO uav_models/);
-  assert.equal(d.bindings[1][2],'Тестова модель');
-  assert.equal(d.bindings[1][4],'multirotor');
-  assert.equal(d.bindings[1][5],'fpv');
+  assert.match(d.queries[2],/^INSERT INTO uav_models/);
+  assert.equal(d.bindings[2][2],'Тестова модель');
+  assert.equal(d.bindings[2][4],'multirotor');
+  assert.equal(d.bindings[2][5],'fpv');
   assert.doesNotMatch(d.queries.join('\n'),/station_types|stations /);
 });
 test('wing cannot have FPV subtype and multirotor must have a leaf subtype',async()=>{
@@ -129,7 +137,7 @@ test('model edit uses version compare-and-swap',async()=>{
   const d=db({changes:0});
   const response=await uavCatalogApi(req('models','PATCH',{...model,version:4}),d.env,admin,segment('models'));
   assert.equal(response.status,409);
-  assert.match(d.queries[1],/WHERE code=\? AND version=\?/);
+  assert.match(d.queries[2],/WHERE code=\? AND version=\?/);
 });
 test('writes are blocked if D1 audit triggers have not migrated',async()=>{
   const d=db({trigger:false});
@@ -194,6 +202,8 @@ test('model card and history are read-only and return structured records',async(
   assert.equal(res.status,200);
   const card=await res.json();
   assert.equal(card.model.id,undefined);
+  assert.deepEqual(card.model.operating_countries,['UA','PL']);
+  assert.equal(card.model.use_side,'Ворог');
   assert.equal(card.frequencies.length,1);
   assert.equal(card.materials.length,0);
   const journal=await uavCatalogApi(new Request(url('history','?code=UAV-0001')),d.env,admin,segment('history'));
@@ -205,7 +215,7 @@ test('catalog responds safely before migration and when there is no database',as
   const d=db({tableAbsent:true});
   const failed=await uavCatalogApi(new Request(url('data')),d.env,admin,segment('data'));
   assert.equal(failed.status,503);
-  assert.match((await failed.json()).error,/0009/);
+  assert.match((await failed.json()).error,/0010/);
   assert.equal((await uavCatalogApi(new Request(url('data')),{DB:null},admin,segment('data'))).status,503);
 });
 test('wing form permits explicit empty subtype while API validates multirotor subtype',()=>{
@@ -219,7 +229,9 @@ test('UI contains four semantic tabs and all three editor forms',()=>{
     assert.ok(UAV_CATALOG_HTML.includes('id="tab-'+tab+'"'));
     assert.ok(UAV_CATALOG_HTML.includes('id="panel-'+tab+'"'));
   }
-  for(const id of ['model-form','freq-form','material-form','search','type-filter','subtype-filter']){
+  for(const id of ['model-form','freq-form','material-form','search','type-filter','subtype-filter',
+    'model-side','model-country-options','model-country-search','side-filter','country-filter',
+    'country-add-code','country-add-name']){
     assert.ok(UAV_CATALOG_HTML.includes('id="'+id+'"'));
   }
   assert.match(UAV_CATALOG_CSS,/#card\[open\]/);
@@ -228,4 +240,44 @@ test('UI contains four semantic tabs and all three editor forms',()=>{
   assert.match(UAV_CATALOG_JS,/textContent/);
   assert.doesNotMatch(UAV_CATALOG_JS,/\.innerHTML\s*=/);
   assert.doesNotThrow(()=>new Function(UAV_CATALOG_JS));
+});
+test('model metadata supports multiple operating countries and validates them in D1',async()=>{
+  const allowed=db({validCountryCodes:['UA','PL']});
+  const payload={...model,use_side:'Умовна сторона',operating_countries:['UA','PL']};
+  const result=await uavCatalogApi(req('models','POST',payload),allowed.env,admin,segment('models'));
+  assert.equal(result.status,201);
+  assert.equal(allowed.bindings.at(-1)[12],'Умовна сторона');
+  assert.equal(allowed.bindings.at(-1)[13],'["PL","UA"]');
+  assert.match(allowed.queries.at(-2),/SELECT code FROM uav_countries/);
+  const missing=db({validCountryCodes:['UA']});
+  const bad=await uavCatalogApi(req('models','POST',payload),missing.env,admin,segment('models'));
+  assert.equal(bad.status,400);
+  assert.ok(missing.queries.every(sql=>!sql.startsWith('INSERT INTO uav_models')));
+});
+test('operating country selections reject duplicates and unsupported country codes',async()=>{
+  for(const payload of [
+    {...model,operating_countries:['UA','UA']},
+    {...model,operating_countries:['USA']},
+    {...model,operating_countries:'UA,PL'},
+    {...model,use_side:'\n'}
+  ]){
+    const d=db(),r=await uavCatalogApi(req('models','POST',payload),d.env,admin,segment('models'));
+    assert.equal(r.status,400);
+    assert.equal(d.queries.length,0);
+  }
+});
+test('country dictionary returns names and accepts new administrative country entries',async()=>{
+  const d=db();
+  const get=await uavCatalogApi(new Request(url('countries')),d.env,admin,segment('countries'));
+  assert.equal(get.status,200);
+  assert.equal((await get.json()).items.length,2);
+  const add=await uavCatalogApi(req('countries','POST',{code:'IS',name_uk:'Ісландія'}),
+    d.env,admin,segment('countries'));
+  assert.equal(add.status,201);
+  assert.ok(d.queries.some(sql=>sql.includes('INSERT INTO uav_countries')));
+  const rejected=db();
+  const invalid=await uavCatalogApi(req('countries','POST',{code:'three',name_uk:'X'}),
+    rejected.env,admin,segment('countries'));
+  assert.equal(invalid.status,400);
+  assert.equal(rejected.queries.length,0);
 });
