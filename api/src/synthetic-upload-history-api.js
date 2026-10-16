@@ -15,7 +15,7 @@ export async function syntheticHistoryReady(DB){
   "SELECT name FROM sqlite_master WHERE type='table' AND name='demo_import_documents' LIMIT 1"
  ).first());
 }
-function snapshot(doc){
+export function verifiedSyntheticSnapshot(doc){
  if(doc.type==="unsupported"){
   return JSON.stringify({name:String(doc.name||"").slice(0,nameLimit),type:"unsupported",
    records:0,questions:0,detail:[]});
@@ -33,7 +33,7 @@ function snapshot(doc){
 }
 const digestHex=buffer=>crypto.subtle.digest("SHA-256",buffer).then(d=>[...new Uint8Array(d)]
  .map(b=>b.toString(16).padStart(2,"0")).join(""));
-export async function saveSyntheticHistory(DB,{sessionId,actorId,uploadName,sourceBytes,documents}){
+export async function saveSyntheticHistory(DB,{sessionId,actorId,uploadName,sourceBytes,documents,versionPlans}){
  if(!validId(sessionId))throw Error("Invalid import session");
  if(typeof uploadName!=="string"||uploadName.length>nameLimit)throw Error("Invalid input name");
  if(!Array.isArray(documents)||documents.length===0||documents.length>12)throw Error("Invalid document count");
@@ -48,13 +48,18 @@ export async function saveSyntheticHistory(DB,{sessionId,actorId,uploadName,sour
   const rows=status==="accepted"?doc.records:0;
   const pending=status==="accepted"?doc.detail.filter(x=>x.status==="review").length:0;
   const resolved=status==="accepted"?doc.detail.filter(x=>x.status==="resolved").length:0;
-  const body=snapshot(doc);
+  const body=verifiedSyntheticSnapshot(doc);
   queries.push(DB.prepare(
    "INSERT OR IGNORE INTO demo_import_documents "+
    "(id,session_id,input_sha256,member_index,input_name,document_name,kind,status,row_count,pending_count,auto_resolved_count,snapshot_json) "+
    "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)"
   ).bind(crypto.randomUUID(),sessionId,hash,index,uploadName,String(doc.name).slice(0,nameLimit),
     status==="accepted"?doc.type:"unsupported",status,rows,pending,resolved,body));
+ }
+ if(versionPlans){
+  const {versionMutations}=await import("./synthetic-report-versions.js");
+  const result=versionMutations(DB,{plans:versionPlans,sessionId,actorId,inputSha256:hash});
+  queries.push(...result.statements);
  }
  queries.push(DB.prepare(
   "UPDATE demo_import_sessions SET updated_at=CURRENT_TIMESTAMP,"+
@@ -67,7 +72,9 @@ export async function saveSyntheticHistory(DB,{sessionId,actorId,uploadName,sour
   " WHERE id=? AND actor_id=?"
  ).bind(sessionId,sessionId,sessionId,sessionId,sessionId,sessionId,sessionId,actorId));
  await DB.batch(queries);
- return {session_id:sessionId};
+ return {session_id:sessionId,versions:versionPlans?versionPlans.filter(x=>x.kind!=="unsupported").map(x=>({
+   kind:x.kind,report_date:x.report_date,revision:x.current_revision+(x.change==="same"?0:1),change:x.change
+  })):[]};
 }
 export async function syntheticHistoryApi(req,env,user,segments){
  if(!user||user.role!=="admin"||user.active!==1)return fail(403,"Лише адміністратор");
