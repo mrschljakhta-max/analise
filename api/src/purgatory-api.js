@@ -106,9 +106,10 @@ async function auditHistory(db,req){
   args.push(...expressions.map(()=>literalUnicodeGlob(needle)));
  }
  const where=filters.length?" WHERE "+filters.join(" AND "):"";
- const result=await db.prepare(AUDIT_SELECT+AUDIT_FROM+where+
-  (cursor===null?(where?" AND ":" WHERE "):" AND ") +
-  (cursor===null?"1=1":"a.id < ?")+
+ const pageFilters=cursor===null?filters:[...filters,"a.id < ?"];
+ const pageWhere=pageFilters.length?" WHERE "+pageFilters.join(" AND "):"";
+ // The cursor MUST be in WHERE, not the last LEFT JOIN's ON clause.
+ const result=await db.prepare(AUDIT_SELECT+AUDIT_FROM+pageWhere+
   " ORDER BY a.id DESC LIMIT 51"
  ).bind(...args,...(cursor===null?[]:[cursor])).all();
  const all=result.results||[],items=all.slice(0,50);
