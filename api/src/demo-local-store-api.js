@@ -152,7 +152,7 @@ function baseQuery(name){
 export async function demoLocalStoreApi(req,env,user,seg){
  if(!user||user.active!==1||user.role!=="admin")return fail("Лише адміністратор",403);
  if(!env.DB)return fail("D1 недоступна",503);
- if(seg.length===3&&req.method==="GET"){
+ if(seg.length===2&&req.method==="GET"){
   try{
    const rows=await env.DB.prepare(
     "SELECT id,report_name,version,created_at FROM report_versions "+
@@ -172,7 +172,7 @@ export async function demoLocalStoreApi(req,env,user,seg){
     data:JSON.parse(item.snapshot_json)});
   }catch{return fail("Дані не вдалося прочитати",503)}
  }
- if(seg.length!==3||req.method!=="POST")return fail("Непідтримувана дія",405);
+ if(seg.length!==2||req.method!=="POST")return fail("Непідтримувана дія",405);
  let payload;
  try{
   const size=Number(req.headers.get("content-length")||0);
