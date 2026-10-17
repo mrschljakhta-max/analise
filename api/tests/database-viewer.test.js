@@ -91,11 +91,15 @@ test("detail and list restrict to synthetic records and sanitize snapshots",asyn
 test("Ukrainian searching, status filters, wildcard escapes and sorting",async()=>{
  const {db,sqlite}=setup();
  try{
-  for(const term of ["Альфа","альфа"]){
+  for(const term of ["Альфа","альфа","АЛЬФА","аЛьФа"]){
    const res=await (await call(db,"data?dataset=demo_labels&q="+encodeURIComponent(term))).json();
    assert.equal(res.count,1);
   }
   assert.equal((await (await call(db,"data?dataset=demo_labels&q=%25")).json()).count,0);
+  assert.equal((await (await call(db,"data?dataset=demo_labels&q=*")).json()).count,0);
+  assert.equal((await (await call(db,"data?dataset=demo_labels&q=%3F")).json()).count,0);
+  assert.equal((await (await call(db,"data?dataset=demo_labels&q=%5B")).json()).count,0);
+  assert.equal((await (await call(db,"data?dataset=demo_rules&q=%D0%90%D0%9B%D0%AC%D0%A4%D0%90")).json()).count,1);
   assert.equal((await (await call(db,"data?dataset=demo_occurrences&filter=resolved")).json()).count,1);
   assert.equal((await (await call(db,"data?dataset=demo_occurrences&filter=pending")).json()).count,0);
   assert.equal((await (await call(db,"data?dataset=demo_rules&filter=active")).json()).count,1);
