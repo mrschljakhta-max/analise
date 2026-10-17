@@ -1,31 +1,45 @@
-name: Directory import checks
+name: ANALISE API integrity checks
+
 on:
-  push:
-    branches: [feat/universal-reference-catalog]
   pull_request:
     paths:
-      - 'api/src/directories.js'
-      - 'api/src/directory-import-assets.js'
-      - 'api/tests/**'
-      - 'api/src/synthetic-*'
-      - 'api/src/generic-*'
-      - 'api/src/database-*'
-      - 'api/src/global-navigation-assets.js'
-      - 'api/package.json'
-      - 'api/migrations/**'
+      - 'api/**'
       - '.github/workflows/directory-import-checks.yml'
+      - '.github/workflows/deploy-api.yml'
+      - '.github/workflows/migrate-d1.yml'
+  push:
+    branches:
+      - main
+      - feat/universal-reference-catalog
+    paths:
+      - 'api/**'
+      - '.github/workflows/directory-import-checks.yml'
+      - '.github/workflows/deploy-api.yml'
+      - '.github/workflows/migrate-d1.yml'
+
+permissions:
+  contents: read
+
 jobs:
   test:
+    name: API syntax, tests, Worker bundle
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: api
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install --no-audit --no-fund
-      - run: find src -name '*.js' -print0 | xargs -0 -r -n 1 node --check
-      - run: npm test
-      - run: npx wrangler deploy --dry-run --outdir /tmp/analise-dry-run
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Check all server JavaScript
+        run: find src -type f -name '*.js' -print0 | xargs -0 -r -n 1 node --check
+      - name: Run API tests and entrypoint integrity regression
+        run: npm test
+      - name: Check Cloudflare Worker build without deploying
+        run: npx wrangler deploy --dry-run --outdir /tmp/analise-dry-run
