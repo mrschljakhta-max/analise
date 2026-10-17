@@ -7,7 +7,8 @@ const HEADERS={
  "content-security-policy":"default-src 'none'"
 };
 const PREFIX="ANALISE-RAW-V1:";
-const LIMIT_BYTES=190_000,MAX_RECORDS=500,MAX_TABLES=12;
+// Excel A:AA records are wider than Word; allow a bounded, single D1 snapshot.
+const LIMIT_BYTES=800_000,MAX_RECORDS=1200,MAX_TABLES=20;
 const response=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:HEADERS});
 const fail=(msg,status=400)=>response({error:msg},status);
 const reject=msg=>{throw Error(msg)};
@@ -45,11 +46,14 @@ function rawCells(value,kind){
  const map={};
  for(const [key,v] of Object.entries(value)){
   if(!/^[A-Z]{1,3}$/.test(key)||!object(v))reject("Некоректний стовпець Excel");
-  fields(v,["ref","raw","type","has_formula"]);
+  fields(v,["ref","raw","type","has_formula","formula"]);
   if(typeof v.ref!=="string"||!new RegExp("^"+key+"[1-9][0-9]{0,5}$").test(v.ref))
    reject("Некоректна адреса клітинки");
+  if(v.formula!==undefined&&v.has_formula!==true)
+   reject("Формула Excel має бути позначена як формула");
   map[key]={ref:v.ref,raw:string(v.raw,1800),
-   type:string(v.type,25),...(v.has_formula===true?{has_formula:true}:{})};
+   type:string(v.type,25),...(v.has_formula===true?{has_formula:true}:{}),
+   ...(v.formula!==undefined?{formula:string(v.formula,1400,{empty:false})}:{})};
  }
  return map;
 }
@@ -68,17 +72,28 @@ export function validateRawSnapshot(payload){
   report.persisted_in_d1!==false||report.checked_against_d1!==false||
   !Array.isArray(report.tables)||report.tables.length<1||report.tables.length>MAX_TABLES)
   reject("Невідома версія результатів парсингу");
- const tables=[],usedSheets=new Set();let records=0,valid=0;
+ const tables=[],usedSheets=new Set();let records=0,valid=0,recognizedTables=0;
  for(const table of report.tables){
   fields(table,["sheet","format","profile","recognized","header_row","columns",
    "column_headers","records","issues","structure"]);
   const sheet=string(table.sheet,80,{empty:false});
   if(usedSheets.has(sheet))reject("Повторна назва таблиці");usedSheets.add(sheet);
-  if(table.format!==kind||table.recognized!==true||
+  if(table.format!==kind||typeof table.recognized!=="boolean"||
    !Array.isArray(table.records)||!Array.isArray(table.columns)||
-   table.columns.length<1||table.columns.length>80||
+   table.columns.length>80||
    !Number.isSafeInteger(table.header_row)||table.header_row<0||table.header_row>15000)
    reject("Нерозпізнана або некоректна таблиця");
+  // Empty XLSX worksheets are legitimate; record them, but never silently
+  // discard unrecognized sheets containing rows.
+  if(!table.recognized){
+   if(kind!=="xlsx"||table.records.length!==0||table.columns.length!==0||
+    table.header_row!==0||!table.issues?.some(x=>x.code==="empty_sheet"))
+    reject("В аркуші є нерозпізнані дані — збереження не виконано");
+  }else{
+   if(!table.records.length||!table.columns.length)
+    reject("Таблиця не містить розпізнаних рядків");
+   recognizedTables++;
+  }
   const columns=table.columns.map(v=>string(v,40,{empty:false}));
   if(new Set(columns).size!==columns.length)reject("Дублікати колонок");
   const rows=[],seen=new Set();
@@ -98,7 +113,7 @@ export function validateRawSnapshot(payload){
     raw_cells:rawCells(entry.raw_cells,kind),values,valid:entry.valid});
    if(entry.valid)valid++;
    records++;
-   if(records>MAX_RECORDS)reject("Для однієї версії дозволено до 500 рядків");
+   if(records>MAX_RECORDS)reject("Для однієї версії дозволено до 1200 рядків");
   }
   const issues=Array.isArray(table.issues)?table.issues:[];
   if(issues.length>500)reject("Забагато зауважень");
@@ -119,16 +134,18 @@ export function validateRawSnapshot(payload){
   if(table.column_headers!==undefined&&table.column_headers!==null)
    headers=simpleMap(table.column_headers,80,100);
   tables.push({sheet,format:kind,profile:string(table.profile,80),
-   header_row:table.header_row,columns,records:rows,issues:cleanedIssues,
+   recognized:table.recognized,header_row:table.header_row,
+   columns,records:rows,issues:cleanedIssues,
    structure:st,...(headers?{column_headers:headers}:{})});
  }
  if(!records||report.table_count!==tables.length||
-  report.recognized_tables!==tables.length||report.records!==records||
+  report.recognized_tables!==recognizedTables||report.records!==records||
   report.valid!==valid||report.needs_review!==records-valid)
   reject("Показники парсингу не збігаються з рядками");
  const snapshot={schema_version:"ANALISE_RAW_D1_V1",source_name:name,
   kind,review_status:"pending",checked_against_directories:false,
-  raw_immutable:true,record_count:records,valid_structure_count:valid,tables};
+  raw_immutable:true,record_count:records,valid_structure_count:valid,
+  sheet_count:tables.length,recognized_sheet_count:recognizedTables,tables};
  limitedJson(snapshot,LIMIT_BYTES);
  return snapshot;
 }
@@ -177,7 +194,11 @@ export async function rawDocumentsApi(req,env,user,seg){
   if(new TextEncoder().encode(text).length>LIMIT_BYTES+10_000)
    return fail("Запит перевищує ліміт",413);
   snapshot=validateRawSnapshot(JSON.parse(text));
- }catch{return fail("Некоректні дані RAW або відсутнє підтвердження дозволу на зберігання",400)}
+ }catch(e){
+  if(e?.message==="Завеликий масив даних")return fail(
+   "RAW перевищує 800 КБ. Потрібно розділити книгу або додати пакетне збереження.",413);
+  return fail("Некоректні дані RAW або відсутнє підтвердження дозволу на зберігання",400);
+ }
  try{
   const name=PREFIX+await sha256(user.id+"|"+snapshot.source_name.normalize("NFC").toLocaleLowerCase("uk-UA"));
   const raw=JSON.stringify(snapshot),hash=await sha256(raw);
