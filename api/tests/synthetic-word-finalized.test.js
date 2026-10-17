@@ -96,8 +96,8 @@ test("integration route exists; read model contains no operational mappings",()=
 });
 
 test("demo interface exposes refreshable finalized Word results and compiles",()=>{
- assert.match(SYNTHETIC_UPLOAD_HTML,/id=\\"ud-finalized-refresh\\"/);
- assert.match(SYNTHETIC_UPLOAD_HTML,/id=\\"ud-finalized-list\\"/);
- assert.match(SYNTHETIC_UPLOAD_JS,/synthetic-upload\\/finalized/);
+ assert.match(SYNTHETIC_UPLOAD_HTML,/id="ud-finalized-refresh"/);
+ assert.match(SYNTHETIC_UPLOAD_HTML,/id="ud-finalized-list"/);
+ assert.ok(SYNTHETIC_UPLOAD_JS.includes("synthetic-upload/finalized"));
  assert.doesNotThrow(()=>new Script(SYNTHETIC_UPLOAD_JS));
 });
