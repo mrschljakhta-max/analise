@@ -1,3 +1,4 @@
+import {literalUnicodeGlob} from "./unicode-search.js";
 // Generic, non-operational directory-value review and memory for ANALISE.
 // Existing directories are read-only here. Source strings are immutable in the audit.
 export const normalizeReviewValue = value => String(value ?? "").normalize("NFC")
@@ -69,17 +70,66 @@ async function snapshot(db){
  return response({groups:rows.results||[],rules:rules.results||[],
   audit:audit.results||[],counts, dictionaries:dirs.results||[]});
 }
+// Full read-only audit history, paginated by immutable monotonically increasing ID.
+// Filtering and searching happen server-side, so older matching events aren't omitted.
+const AUDIT_DIRECTORY="COALESCE(json_extract(a.after_json,'$.directory'),json_extract(a.before_json,'$.directory'))";
+const AUDIT_FROM=" FROM dq_audit a "+
+ "LEFT JOIN directory_entries ea ON ea.id=json_extract(a.after_json,'$.target') "+
+ "LEFT JOIN directory_entries eb ON eb.id=json_extract(a.before_json,'$.target') "+
+ "LEFT JOIN dq_rules r ON a.entity_type='rule' AND a.entity_id=r.id "+
+ "LEFT JOIN directory_types t ON t.id="+AUDIT_DIRECTORY;
+const AUDIT_SELECT="SELECT a.id,a.entity_type,a.entity_id,a.action,a.actor_id,a.at,a.before_json,a.after_json,"+
+ "json_extract(ea.data_json,'$.name') AS after_target_name,"+
+ "json_extract(eb.data_json,'$.name') AS before_target_name,"+
+ "r.raw_example AS rule_example";
+async function auditHistory(db,req){
+ const params=new URL(req.url).searchParams;
+ const directory=text(params.get("directory_id")||"",60);
+ const needle=text(params.get("q")||"",80);
+ const cursorRaw=params.get("before");
+ if(cursorRaw!==null&&!/^[1-9]\d{0,14}$/.test(cursorRaw))
+  return fail(400,"Некоректний курсор історії");
+ const cursor=cursorRaw===null?null:Number(cursorRaw);
+ if(cursor!==null&&!Number.isSafeInteger(cursor))return fail(400,"Некоректний курсор історії");
+ if(directory&&!await validDirectory(db,directory))
+  return fail(404,"Довідник не знайдено");
+ const filters=[],args=[];
+ if(directory){
+  filters.push(AUDIT_DIRECTORY+"=?");
+  args.push(directory);
+ }
+ if(needle){
+  const expressions=["a.after_json","a.before_json","a.actor_id","a.at",
+    "r.raw_example","t.title","json_extract(ea.data_json,'$.name')",
+    "json_extract(eb.data_json,'$.name')"];
+  filters.push("("+expressions.map(expr=>expr+" GLOB ?").join(" OR ")+")");
+  args.push(...expressions.map(()=>literalUnicodeGlob(needle)));
+ }
+ const where=filters.length?" WHERE "+filters.join(" AND "):"";
+ const pageFilters=cursor===null?filters:[...filters,"a.id < ?"];
+ const pageWhere=pageFilters.length?" WHERE "+pageFilters.join(" AND "):"";
+ // The cursor MUST be in WHERE, not the last LEFT JOIN's ON clause.
+ const result=await db.prepare(AUDIT_SELECT+AUDIT_FROM+pageWhere+
+  " ORDER BY a.id DESC LIMIT 51"
+ ).bind(...args,...(cursor===null?[]:[cursor])).all();
+ const all=result.results||[],items=all.slice(0,50);
+ const count=await db.prepare("SELECT COUNT(*) AS n"+AUDIT_FROM+where)
+  .bind(...args).first();
+ return response({items,count:count?.n??0,has_more:all.length>50,
+  next_before:items.length?items[items.length-1].id:null,page_size:50});
+}
+
 async function candidates(db,req){
  const search=new URL(req.url).searchParams;
  const dir=text(search.get("directory_id")||"",60,true);
  const q=text(search.get("q")||"",80);
  if(!await validDirectory(db,dir))return fail(404,"Довідник не знайдено");
- // Only names and opaque IDs are returned, never geolocation or directory metadata.
- const pattern="%"+q.replace(/[%_\\]/g, "\\$&")+"%";
+ // Return only directory labels/opaque IDs, never metadata.
+ const pattern=literalUnicodeGlob(q);
  const data=await db.prepare(
   "SELECT id,json_extract(data_json,'$.name') AS name FROM directory_entries "+
   "WHERE directory_id=? AND archived_at IS NULL AND json_type(data_json,'$.name')='text' "+
-  "AND json_extract(data_json,'$.name') LIKE ? ESCAPE '\\' "+
+  "AND json_extract(data_json,'$.name') GLOB ? "+
   "ORDER BY json_extract(data_json,'$.name') LIMIT 40"
  ).bind(dir,pattern).all();
  return response({items:data.results||[]});
@@ -192,6 +242,7 @@ export async function purgatoryApi(req,env,user,segments){
   if(!await migrationReady(env.DB))return fail(503,"Застосуй міграцію D1 0013");
   const route=segments[2]||"";
   if(req.method==="GET"&&route==="data")return await snapshot(env.DB);
+ if(req.method==="GET"&&route==="history")return await auditHistory(env.DB,req);
   if(req.method==="GET"&&route==="candidates")return await candidates(env.DB,req);
   if(req.method!=="POST")return fail(405,"Метод не підтримується");
   const body=await parse(req);
