@@ -9,6 +9,7 @@ import {GENERIC_LOCAL_EXPORT_JS} from "./generic-local-export-assets.js";
 import {GENERIC_WORD_COLUMN_SPLIT_JS} from "./generic-word-column-split-assets.js";
 import {GENERIC_AUTO_PROFILE_JS} from "./generic-auto-profile-assets.js";
 import {GENERIC_DEMO_DICTIONARY_JS} from "./generic-demo-dictionary-assets.js";
+import {GENERIC_LOCAL_REVIEW_JS} from "./generic-local-review-assets.js";
 import {SYNTHETIC_UPLOAD_HTML,SYNTHETIC_UPLOAD_CSS} from "./synthetic-upload-assets.js";
 import {SYNTHETIC_UPLOAD_JS} from "./synthetic-upload-client.js";
 import {syntheticUploadApi} from "./synthetic-upload-api.js";
@@ -342,7 +343,7 @@ export default {
       }
       if(["/api/database-viewer/catalog","/api/database-viewer/data"].includes(url.pathname))
         return databaseViewerApi(req,env,user,seg);
-      if (["/api/generic-preview","/api/generic-preview.css","/api/generic-preview.js","/api/generic-mapping-core.js","/api/generic-word-structure.js","/api/generic-word-column-split.js","/api/generic-auto-profile.js","/api/generic-demo-dictionary.js","/api/generic-local-export.js"].includes(url.pathname)) {
+      if (["/api/generic-preview","/api/generic-preview.css","/api/generic-preview.js","/api/generic-mapping-core.js","/api/generic-word-structure.js","/api/generic-word-column-split.js","/api/generic-auto-profile.js","/api/generic-demo-dictionary.js","/api/generic-local-review.js","/api/generic-local-export.js"].includes(url.pathname)) {
         if(req.method!=="GET")return error(405,"Дозволено лише GET");
         if(user.role!=="admin")return error(403,"Лише адміністратор");
         if(url.pathname==="/api/generic-preview")return appAsset(GENERIC_PREVIEW_HTML,"text/html; charset=utf-8");
@@ -352,6 +353,7 @@ export default {
         if(url.pathname==="/api/generic-word-column-split.js")return appAsset(GENERIC_WORD_COLUMN_SPLIT_JS,"text/javascript; charset=utf-8");
          if(url.pathname==="/api/generic-auto-profile.js")return appAsset(GENERIC_AUTO_PROFILE_JS,"text/javascript; charset=utf-8");
         if(url.pathname==="/api/generic-demo-dictionary.js")return appAsset(GENERIC_DEMO_DICTIONARY_JS,"text/javascript; charset=utf-8");
+        if(url.pathname==="/api/generic-local-review.js")return appAsset(GENERIC_LOCAL_REVIEW_JS,"text/javascript; charset=utf-8");
         if(url.pathname==="/api/generic-local-export.js")return appAsset(GENERIC_LOCAL_EXPORT_JS,"text/javascript; charset=utf-8");
         return appAsset(GENERIC_PREVIEW_JS,"text/javascript; charset=utf-8");
       }
