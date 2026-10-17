@@ -7,6 +7,7 @@ import {GENERIC_MAPPING_CORE_JS} from "./generic-mapping-core-assets.js";
 import {SYNTHETIC_UPLOAD_HTML,SYNTHETIC_UPLOAD_CSS} from "./synthetic-upload-assets.js";
 import {SYNTHETIC_UPLOAD_JS} from "./synthetic-upload-client.js";
 import {syntheticUploadApi} from "./synthetic-upload-api.js";
+import {syntheticWordFinalizedApi} from "./synthetic-word-finalized-api.js";
 import {syntheticHistoryApi} from "./synthetic-upload-history-api.js";
 import {syntheticVersionsApi} from "./synthetic-report-versions.js";
 import {PURGATORY_HTML,PURGATORY_CSS} from "./purgatory-assets.js";
@@ -470,6 +471,7 @@ export default {
         await env.DB.prepare("SELECT 1 AS ok").first();
         return reply({ok:true,database:true,private_files:!!env.DOCUMENTS,files_enabled:env.FILE_UPLOAD_ENABLED==="true"});
       }
+      if(url.pathname==="/api/synthetic-upload/finalized")return await syntheticWordFinalizedApi(req,env,user);
       if(seg[1]==="synthetic-upload"&&seg[2]==="history")return await syntheticHistoryApi(req,env,user,seg);
       if(seg[1]==="synthetic-upload"&&seg[2]==="versions")return await syntheticVersionsApi(req,env,user,seg);
       if(url.pathname==="/api/synthetic-upload/inspect")return await syntheticUploadApi(req,env,user);
