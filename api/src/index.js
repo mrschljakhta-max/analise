@@ -30,6 +30,8 @@ import { contactApi } from "./contact-api.js";
 import { DASHBOARD_HTML,DASHBOARD_CSS,DASHBOARD_JS } from "./dashboard-assets.js";
 import { GLOBAL_NAV_CSS,GLOBAL_NAV_JS } from "./global-navigation-assets.js";
 import { dashboardApi } from "./dashboard-api.js";
+import { qualityInventoryApi } from "./quality-inventory-api.js";
+import {QUALITY_HTML,QUALITY_CSS,QUALITY_JS} from "./quality-inventory-assets.js";
 import { VP_SP_HTML, VP_SP_CSS } from "./vp-sp-assets.js";
 import { VP_SP_JS } from "./vp-sp-client.js";
 import { VP_SP_EXPORT_JS } from "./vp-sp-export-assets.js";
@@ -483,6 +485,14 @@ export default {
         if (url.pathname === "/api/test.js") return testAsset(TEST_JS, "text/javascript; charset=utf-8", "default-src 'none'");
         return testAsset(TEST_CSS, "text/css; charset=utf-8", "default-src 'none'");
       }
+      if(url.pathname==="/api/quality-inventory/view"||url.pathname==="/api/quality-inventory/view.js"||url.pathname==="/api/quality-inventory/view.css"){
+        if(req.method!=="GET")return error(405,"Дозволено лише GET");
+        if(user.role!=="admin")return error(403,"Лише адміністратор");
+        const ext=url.pathname.endsWith(".js")?"js":url.pathname.endsWith(".css")?"css":"html";
+        return appAsset(ext==="js"?QUALITY_JS:ext==="css"?QUALITY_CSS:QUALITY_HTML,
+          ext==="js"?"text/javascript; charset=utf-8":ext==="css"?"text/css; charset=utf-8":"text/html; charset=utf-8");
+      }
+      if(url.pathname==="/api/quality-inventory")return await qualityInventoryApi(req,env,user);
       if(url.pathname==="/api/dashboard/data")return await dashboardApi(req,env,user,seg);
       if(url.pathname==="/api/me"&&req.method==="GET")return reply({id:user.id,email:user.email,role:user.role});
       if(url.pathname==="/api/health"&&req.method==="GET"){
