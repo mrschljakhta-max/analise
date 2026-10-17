@@ -4,6 +4,7 @@
 import {unzipSync} from "fflate";
 import {purgatoryApi} from "./purgatory-api.js";
 import {saveSyntheticHistory,syntheticHistoryReady} from "./synthetic-upload-history-api.js";
+import {syntheticWordRowsReady} from "./synthetic-word-records.js";
 import {inspectSyntheticVersions,assertVersionApproval,withSnapshotPlans} from "./synthetic-report-versions.js";
 
 const encoder=new TextDecoder();
@@ -178,6 +179,8 @@ export async function syntheticUploadApi(req,env,user){
    kind:p.kind,report_date:p.report_date||null,change:p.change,
    current_revision:p.current_revision||0,expected_version_id:p.expected_version_id||""
   }))});
+  if(docs.some(d=>d.type==="docx") && !await syntheticWordRowsReady(env.DB))
+   return invalid("Застосуй міграцію D1 0019 для запису тестових рядків Word",503);
   let approved;
   try{
    approved=JSON.parse(req.headers.get("x-analise-version-approval")||"null");
@@ -196,7 +199,7 @@ export async function syntheticUploadApi(req,env,user){
   const msg=String(e?.message||"Помилка");
   if(/Stale demo report version|UNIQUE constraint failed: demo_report_versions\.kind/.test(msg))
    return invalid("Звіт оновив інший оператор. Повтори перевірку перед заміною.",409);
-  if(msg.includes("Застосуй міграцію D1 0016"))return invalid(msg,503);
+  if(msg.includes("Застосуй міграцію D1 0016")||msg.includes("Застосуй міграцію D1 0019"))return invalid(msg,503);
   // No personal, operational or file contents are logged or returned.
   if(/синтетичн|Непідтримув|Структура|Архів|Файл|Документ|Книга|тестов|позначк|Очікується|Неправильний|Кількість|ліміт|забагато|збігається|одного виду|звітну дату/.test(msg))
    return invalid(msg);

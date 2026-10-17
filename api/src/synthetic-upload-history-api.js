@@ -1,3 +1,4 @@
+import {syntheticWordRowStatements,syntheticWordRowsReady} from "./synthetic-word-records.js";
 // Private, synthetic-only ingestion history. Real report bytes are never stored.
 // The snapshot is intentionally limited to fictional demo names and row statuses.
 const headers={
@@ -60,6 +61,12 @@ export async function saveSyntheticHistory(DB,{sessionId,actorId,uploadName,sour
   const {versionMutations}=await import("./synthetic-report-versions.js");
   const result=versionMutations(DB,{plans:versionPlans,sessionId,actorId,inputSha256:hash});
   queries.push(...result.statements);
+  // Full fictional Word records are materialized atomically with history and versions.
+  // Historical version tests and migration backfills may run before 0019.
+  // The production upload route rejects Word commits until 0019 is installed.
+  if(await syntheticWordRowsReady(DB))queries.push(...syntheticWordRowStatements(DB,{
+    sessionId,inputHash:hash,documents
+  }));
  }
  queries.push(DB.prepare(
   "UPDATE demo_import_sessions SET updated_at=CURRENT_TIMESTAMP,"+
