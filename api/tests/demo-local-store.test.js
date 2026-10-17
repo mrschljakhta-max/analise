@@ -176,6 +176,7 @@ test("private UI requires human click to POST; never sends original DOCX/XLSX",a
  assert.match(GENERIC_DEMO_D1_STORE_JS,/Зберегти тестові результати в D1/);
  assert.ok(GENERIC_PREVIEW_HTML.includes("/api/generic-demo-d1-store.js"));
  assert.ok(GENERIC_PREVIEW_JS.includes("demoD1Store.mount"));
+ assert.ok(GENERIC_PREVIEW_JS.includes("d1_save:state.localSave"));
  assert.ok(!GENERIC_PREVIEW_JS.includes("fetch("));
  assert.ok(!["formData(","arrayBuffer(","readAsArrayBuffer","FileReader"].some(x=>GENERIC_DEMO_D1_STORE_JS.includes(x)));
  assert.match(readFileSync(new URL("../src/index.js",import.meta.url),"utf8"),/demoLocalStoreApi/);
