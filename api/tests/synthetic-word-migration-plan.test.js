@@ -65,7 +65,7 @@ test("real migration chain 0015 -> 0016 -> 0019 works with empty test database",
   apply("0019_synthetic_word_records.sql");
   assert.equal(inspect().apply0019,false);
   assert.equal(inspect().apply0016,false);
-  assert.deepEqual(sqlite.prepare(
-   "SELECT COUNT(*) stored FROM demo_word_rows").get(),{stored:0});
+  assert.equal(sqlite.prepare(
+   "SELECT COUNT(*) stored FROM demo_word_rows").get().stored,0);
  }finally{sqlite.close()}
 });
