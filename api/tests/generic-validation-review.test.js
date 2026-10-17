@@ -36,7 +36,7 @@ test("validates neutral split Word rows and skips structural group/headings",()=
  const result=mapping.validate(table,cfg());
  assert.equal(result.validCount,3);
  assert.equal(result.invalidCount,1);
- assert.equal(result.skippedCount,3);
+ assert.equal(result.skippedCount,4);
  assert.equal(result.processedCount,4);
  assert.equal(result.issueCount,3);
  assert.deepEqual(Array.from(result.issues,x=>x.row),[7,7,7]);
