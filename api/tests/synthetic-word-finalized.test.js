@@ -2,6 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {syntheticWordFinalizedApi,summarizeSyntheticWordDocument} from "../src/synthetic-word-finalized-api.js";
 import {readFileSync} from "node:fs";
+import {Script} from "node:vm";
+import {SYNTHETIC_UPLOAD_HTML} from "../src/synthetic-upload-assets.js";
+import {SYNTHETIC_UPLOAD_JS} from "../src/synthetic-upload-client.js";
 
 const source="synthetic-docx-2026-10-11:row-";
 const doc={
@@ -90,4 +93,11 @@ test("integration route exists; read model contains no operational mappings",()=
  assert.match(router,/synthetic-upload\/finalized/);
  assert.match(module,/synthetic_only/);
  assert.doesNotMatch(module,/MGRS|azimuth|координат|цілі|подавлен|бойов/iu);
+});
+
+test("demo interface exposes refreshable finalized Word results and compiles",()=>{
+ assert.match(SYNTHETIC_UPLOAD_HTML,/id=\\"ud-finalized-refresh\\"/);
+ assert.match(SYNTHETIC_UPLOAD_HTML,/id=\\"ud-finalized-list\\"/);
+ assert.match(SYNTHETIC_UPLOAD_JS,/synthetic-upload\\/finalized/);
+ assert.doesNotThrow(()=>new Script(SYNTHETIC_UPLOAD_JS));
 });
