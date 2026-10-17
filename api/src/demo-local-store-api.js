@@ -66,7 +66,7 @@ export function validateDemoReview(input){
    ?{status:"needs_mapping",target_id:null}:{status:"pending",target_id:null};
   entries.push({id:e.id,sheet:e.sheet,source_row:e.source_row,field:e.field,
    original_value:e.original_value,detected_status:e.detected_status,
-   final_status:e.status,final_target_id:e.target_id??null,initial});
+   final_status:e.status,final_target_id:e.target_id??null,final_target_name:e.target_name??null,initial});
  }
  const state=new Map(entries.map(e=>[e.id,{...e.initial}]));
  const events=[];
@@ -114,7 +114,7 @@ export function validateDemoReview(input){
   if(e.final_target_id!==null&&!TARGET_NAMES.has(e.final_target_id))
    invalid("Недозволений запис довідника");
   const name=e.final_target_id?TARGET_NAMES.get(e.final_target_id):null;
-  if((e.target_name??null)!==name)invalid("Неузгоджена назва довідника");
+  if(e.final_target_name!==name)invalid("Неузгоджена назва довідника");
   return {id:e.id,sheet:e.sheet,source_row:e.source_row,field:e.field,
    original_value:e.original_value,detected_status:e.detected_status,
    status:now.status,target_id:now.target_id,canonical_name:name};
