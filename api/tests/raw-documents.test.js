@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {Script} from "node:vm";
+import {readFileSync} from "node:fs";
 import {rawDocumentsApi,validateRawSnapshot} from "../src/raw-documents-api.js";
 import {GENERIC_RAW_SAVE_JS} from "../src/generic-raw-save-assets.js";
 import {GENERIC_PREVIEW_JS} from "../src/generic-preview-client.js";
@@ -16,7 +17,7 @@ function fixture(){
    values:{date:"10.10.2026",time:"11:11",value_2:"Перевірити",number_3:"2",
     text_3:"Паперова",value_4:"Виправити"},valid:false}
  ];
- return {schema_version:"ANALISE_RAW_SAVE_V1",classification:"nonrestricted",
+ return {schema_version:"ANALISE_RAW_SAVE_V1",classification:"storage_authorized",
   acknowledged:true,document_name:"Цивільний приклад.docx",
   report:{schema_version:"ANALISE_AUTO_LOCAL_V1",source:"browser_only",
    checked_against_d1:false,persisted_in_d1:false,table_count:1,
@@ -69,7 +70,7 @@ test("RAW preserves exact original cells, records, groups and pending status",()
  assert.equal(d.tables[0].records[1].valid,false);
 });
 test("unverified dictionary values never block RAW save",async()=>{
- const db=mockDB(),env={DB:db.DB,RAW_NONRESTRICTED_ENABLED:"true"};
+ const db=mockDB(),env={DB:db.DB,RAW_SAVE_ENABLED:"true"};
  const r=await rawDocumentsApi(req("POST",fixture()),env,admin,["api","raw-documents"]);
  assert.equal(r.status,201);const j=await r.json();
  assert.equal(j.review_status,"pending");
@@ -80,7 +81,7 @@ test("unverified dictionary values never block RAW save",async()=>{
  assert.equal(db.rows[0].report_name.startsWith("ANALISE-RAW-V1:"),true);
 });
 test("idempotent exact repost reuses D1 version and changed content creates revision",async()=>{
- const db=mockDB(),env={DB:db.DB,RAW_NONRESTRICTED_ENABLED:"true"};
+ const db=mockDB(),env={DB:db.DB,RAW_SAVE_ENABLED:"true"};
  const first=await rawDocumentsApi(req("POST",fixture()),env,admin,["api","raw-documents"]);
  assert.equal((await first.json()).version,1);
  const second=await rawDocumentsApi(req("POST",fixture()),env,admin,["api","raw-documents"]);
@@ -94,7 +95,7 @@ test("idempotent exact repost reuses D1 version and changed content creates revi
  assert.equal(JSON.parse(db.rows[0].snapshot_json).tables[0].records[1].values.value_2,"Перевірити");
 });
 test("read back versions from D1 without changing saved RAW",async()=>{
- const db=mockDB(),env={DB:db.DB,RAW_NONRESTRICTED_ENABLED:"true"};
+ const db=mockDB(),env={DB:db.DB,RAW_SAVE_ENABLED:"true"};
  const saved=await rawDocumentsApi(req("POST",fixture()),env,admin,["api","raw-documents"]);
  const {id}=await saved.json();
  const list=await rawDocumentsApi(req("GET"),env,admin,["api","raw-documents"]);
@@ -107,7 +108,7 @@ test("read back versions from D1 without changing saved RAW",async()=>{
  const j=await read.json();assert.equal(j.data.tables[0].records.length,2);
  assert.equal(j.data.review_status,"pending");
 });
-test("client cannot persist without explicit nonrestricted consent",()=>{
+test("client cannot persist without explicit storage authorization",()=>{
  const good=fixture();
  for(const bad of [
   {...good,acknowledged:false},{...good,classification:"restricted"},
@@ -124,12 +125,12 @@ test("RAW store default-off and admin-only; never writes if disabled",async()=>{
  const db=mockDB();
  const f=fixture();
  for(const user of [null,{role:"duty",active:1,id:"u"},{role:"admin",active:0,id:"u"}]){
-  const r=await rawDocumentsApi(req("POST",f),{DB:db.DB,RAW_NONRESTRICTED_ENABLED:"true"},user,["api","raw-documents"]);
+  const r=await rawDocumentsApi(req("POST",f),{DB:db.DB,RAW_SAVE_ENABLED:"true"},user,["api","raw-documents"]);
   assert.equal(r.status,403);
  }
  let r=await rawDocumentsApi(req("POST",f),{DB:db.DB},admin,["api","raw-documents"]);
  assert.equal(r.status,503);assert.equal(db.rows.length,0);
- r=await rawDocumentsApi(req("PUT",f),{DB:db.DB,RAW_NONRESTRICTED_ENABLED:"true"},admin,["api","raw-documents"]);
+ r=await rawDocumentsApi(req("PUT",f),{DB:db.DB,RAW_SAVE_ENABLED:"true"},admin,["api","raw-documents"]);
  assert.equal(r.status,405);
 });
 test("browser integration contains independent RAW button and protected route",async()=>{
@@ -142,4 +143,20 @@ test("browser integration contains independent RAW button and protected route",a
  assert.match(GENERIC_RAW_SAVE_JS,/check\.checked/);
  const r=await worker.fetch(new Request("https://unit.example/api/raw-documents"),{});
  assert.equal(r.status,503);
+});
+
+test("one persistent config switch permits storage while authorization remains mandatory",async()=>{
+ const cfg=readFileSync(new URL("../wrangler.toml",import.meta.url),"utf8");
+ assert.match(cfg,/^RAW_SAVE_ENABLED = "true"$/m);
+ assert.doesNotMatch(cfg,/^RAW_NONRESTRICTED_ENABLED/m);
+ const fake=mockDB(),env={DB:fake.DB,RAW_SAVE_ENABLED:"true"};
+ const withoutApproval=fixture();withoutApproval.acknowledged=false;
+ const blocked=await rawDocumentsApi(req("POST",withoutApproval),env,admin,["api","raw-documents"]);
+ assert.equal(blocked.status,400);
+ assert.equal(fake.rows.length,0);
+ const yes=await rawDocumentsApi(req("POST",fixture()),env,admin,["api","raw-documents"]);
+ assert.equal(yes.status,201);
+ assert.equal(fake.rows.length,1);
+ assert.match(GENERIC_RAW_SAVE_JS,/зберігання цього документа дозволене/);
+ assert.match(GENERIC_RAW_SAVE_JS,/classification:'storage_authorized'/);
 });
