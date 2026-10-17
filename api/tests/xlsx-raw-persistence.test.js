@@ -132,3 +132,27 @@ test("Browser XLSX OOXML cell parser retains raw XML data and type",()=>{
  assert.ok(GENERIC_PREVIEW_JS.includes("raw:kind==='inlineStr'?txt(inline):raw"));
  assert.ok(GENERIC_PREVIEW_JS.includes("kind==='s'?'shared_string'"));
 });
+
+test("Real XLSX shared-string and inline-string headings are not inserted as data",()=>{
+ const parsed=auto.inspect([{format:"xlsx",sheet:"Журнал",rows:[
+  {index:1,cells:[
+   c("A1","№","shared_string","0"),
+   c("B1","Дата","shared_string","1"),
+   c("C1","Статус","inline_string","Статус")
+  ]},
+  {index:2,cells:[
+   c("A2","1","number","1"),
+   c("B2","2026-10-17","date","46312"),
+   c("C2","Тестовий","shared_string","8")
+  ]}
+ ]}]);
+ assert.equal(parsed.tables[0].header_row,1);
+ assert.equal(parsed.records,1);
+ const snapshot=validateRawSnapshot({
+  schema_version:"ANALISE_RAW_SAVE_V1",classification:"storage_authorized",
+  acknowledged:true,document_name:"typed.xlsx",report:parsed
+ });
+ assert.equal(snapshot.tables[0].records[0].source_row,2);
+ assert.equal(snapshot.tables[0].column_headers.B,"Дата");
+ assert.equal(snapshot.tables[0].records[0].raw_cells.C.type,"shared_string");
+});
