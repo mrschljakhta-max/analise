@@ -191,18 +191,18 @@ test("saved rows and import receipts appear as approved read-only datasets in D1
   assert.equal((await browse("data?dataset=users")).status,400);
  }finally{sqlite.close()}
 });
-test("browser scripts compile and approved D1 upload requires user confirmation",()=>{
+test("experimental office import stays tested but unexposed in the stable recovery UI",()=>{
  assert.doesNotThrow(()=>new Script(APPROVED_OFFICE_IMPORT_JS));
  assert.doesNotThrow(()=>new Script(GENERIC_PREVIEW_JS));
  assert.doesNotThrow(()=>new Script(DATABASE_VIEWER_JS));
- assert.match(GENERIC_PREVIEW_HTML,/id="pv-office-approve"/);
- assert.match(GENERIC_PREVIEW_HTML,/id="pv-office-inspect"/);
- assert.match(GENERIC_PREVIEW_HTML,/id="pv-office-save"/);
- assert.match(GENERIC_PREVIEW_HTML,/approved-office-import\.js/);
- assert.match(APPROVED_OFFICE_IMPORT_JS,/window\.confirm/);
- assert.match(APPROVED_OFFICE_IMPORT_JS,/fetch\("\/api\/approved-import\/"/);
- assert.doesNotMatch(GENERIC_PREVIEW_JS,/\bfetch\s*\(/);
+ for(const id of ["pv-office-approve","pv-office-inspect","pv-office-save"]){
+  assert.doesNotMatch(GENERIC_PREVIEW_HTML,new RegExp('id="'+id+'"'));
+ }
+ assert.doesNotMatch(GENERIC_PREVIEW_HTML,/approved-office-import\\.js/);
+ assert.match(GENERIC_PREVIEW_HTML,/id="pv-map-check"/);
+ assert.match(APPROVED_OFFICE_IMPORT_JS,/window\\.confirm/);
+ assert.match(APPROVED_OFFICE_IMPORT_JS,/fetch\\("\\/api\\/approved-import\\/"/);
+ assert.doesNotMatch(GENERIC_PREVIEW_JS,/\\bfetch\\s*\\(/);
  assert.match(GENERIC_PREVIEW_JS,/AnaliseLocalBridge/);
- assert.match(DATABASE_VIEWER_JS,/new URLSearchParams\(globalThis\.location\.search\)/);
- assert.match(GENERIC_PREVIEW_HTML,/\/api\/database-viewer\?dataset=office_inventory/);
+ assert.match(DATABASE_VIEWER_JS,/new URLSearchParams\\(globalThis\\.location\\.search\\)/);
 });
