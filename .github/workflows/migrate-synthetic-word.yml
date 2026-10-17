@@ -40,7 +40,7 @@ jobs:
 
       - name: Install API dependencies
         working-directory: api
-        run: npm ci --no-audit --no-fund
+        run: npm install --no-audit --no-fund
 
       - name: Test isolated synthetic Word row storage
         working-directory: api
