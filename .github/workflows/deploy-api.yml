@@ -35,6 +35,16 @@ jobs:
         run: |
           find src -type f -name '*.js' -print0 | xargs -0 -r -n 1 node --check
 
+      - name: Guard Cloudflare Worker entrypoint
+        working-directory: api
+        run: |
+          node --input-type=module -e '
+            const worker = (await import("./src/index.js")).default;
+            if (!worker || typeof worker.fetch !== "function") {
+              throw new Error("Cloudflare Worker entrypoint must export a fetch handler");
+            }
+          '
+
       - name: Run API tests
         working-directory: api
         run: npm test
