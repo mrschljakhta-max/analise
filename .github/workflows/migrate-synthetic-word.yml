@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: 'Confirm applying ONLY synthetic Word migration 0019 to remote D1'
+        description: 'Confirm applying only missing synthetic D1 migrations 0016 and 0019'
         type: boolean
         required: true
         default: false
@@ -18,14 +18,14 @@ concurrency:
 
 jobs:
   migrate:
-    name: Apply 0019 (synthetic data only)
+    name: Verify and apply synthetic 0016 / 0019
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Require explicit operator confirmation
         if: ${{ inputs.confirm != true }}
         run: |
-          echo 'Migration 0019 requires explicit confirmation.' >&2
+          echo 'Synthetic migrations 0016/0019 require explicit operator confirmation.' >&2
           exit 1
 
       - name: Checkout exact workflow revision
@@ -42,33 +42,21 @@ jobs:
         working-directory: api
         run: npm install --no-audit --no-fund
 
-      - name: Test isolated synthetic Word row storage
+      - name: Test synthetic migrations and Word row storage
         working-directory: api
         run: |
-          node --test tests/synthetic-word-finalized.test.js
+          node --test tests/synthetic-word-migration-plan.test.js tests/synthetic-word-finalized.test.js
           npx wrangler deploy --dry-run --outdir /tmp/analise-word-bundle
 
-      - name: Verify prerequisites on remote D1 (read only)
+      # Read sqlite_master/PRAGMA instead of querying a missing 0016 table.
+      # Stop on absent 0013/0015 prerequisites or partially applied DDL.
+      # After operator confirmation, apply only missing 0016 then 0019.
+      # Never run generic `wrangler d1 migrations apply` here, since unrelated
+      # 0017/0018 migrations may be pending and must not be touched.
+      - name: Inspect and apply missing synthetic D1 schemas
         working-directory: api
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          npx wrangler d1 execute analise-db --remote --command             "SELECT (SELECT COUNT(*) FROM demo_import_documents) AS docs, (SELECT COUNT(*) FROM demo_report_versions) AS revisions, (SELECT COUNT(*) FROM dq_occurrences) AS reviews;"
-
-      # Apply only 0019. Do NOT run "d1 migrations apply" here because
-      # unapplied 0017/0018 migrations may be unrelated and are not authorized.
-      - name: Apply isolated 0019 migration
-        working-directory: api
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler d1 execute analise-db --remote --yes --file=migrations/0019_synthetic_word_records.sql
-
-      - name: Verify physical row table (read only)
-        working-directory: api
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          npx wrangler d1 execute analise-db --remote --command             "SELECT COUNT(*) AS physically_stored_rows, SUM(CASE WHEN canonical_label IS NOT NULL THEN 1 ELSE 0 END) AS ready_rows, SUM(CASE WHEN canonical_label IS NULL THEN 1 ELSE 0 END) AS pending_rows FROM demo_word_rows;"
+          ANALISE_SYNTHETIC_MIGRATIONS_CONFIRMED: ${{ inputs.confirm }}
+        run: node scripts/apply-synthetic-word-migrations.mjs
