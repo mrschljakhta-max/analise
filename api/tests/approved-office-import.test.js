@@ -198,11 +198,11 @@ test("experimental office import stays tested but unexposed in the stable recove
  for(const id of ["pv-office-approve","pv-office-inspect","pv-office-save"]){
   assert.doesNotMatch(GENERIC_PREVIEW_HTML,new RegExp('id="'+id+'"'));
  }
- assert.doesNotMatch(GENERIC_PREVIEW_HTML,/approved-office-import\\.js/);
+ assert.doesNotMatch(GENERIC_PREVIEW_HTML,/approved-office-import\.js/);
  assert.match(GENERIC_PREVIEW_HTML,/id="pv-map-check"/);
- assert.match(APPROVED_OFFICE_IMPORT_JS,/window\\.confirm/);
- assert.match(APPROVED_OFFICE_IMPORT_JS,/fetch\\("\\/api\\/approved-import\\/"/);
- assert.doesNotMatch(GENERIC_PREVIEW_JS,/\\bfetch\\s*\\(/);
+ assert.match(APPROVED_OFFICE_IMPORT_JS,/window\.confirm/);
+ assert.match(APPROVED_OFFICE_IMPORT_JS,/fetch\("\/api\/approved-import\/"/);
+ assert.doesNotMatch(GENERIC_PREVIEW_JS,/\bfetch\s*\(/);
  assert.match(GENERIC_PREVIEW_JS,/AnaliseLocalBridge/);
- assert.match(DATABASE_VIEWER_JS,/new URLSearchParams\\(globalThis\\.location\\.search\\)/);
+ assert.match(DATABASE_VIEWER_JS,/new URLSearchParams\(globalThis\.location\.search\)/);
 });
