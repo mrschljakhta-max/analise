@@ -1,6 +1,6 @@
-// Nonrestricted RAW document snapshots, independent of directories and Purgatory.
-// Reuses existing report_versions (migration 0001); no D1 migration is executed here.
-// Feature is disabled unless RAW_NONRESTRICTED_ENABLED=true after storage approval.
+// RAW snapshots for documents authorized for this Cloudflare environment.
+// Independent of directories and Purgatory; uses existing report_versions (migration 0001).
+// One persistent RAW_SAVE_ENABLED switch controls the feature, not the document's classification.
 const HEADERS={
  "content-type":"application/json; charset=utf-8","cache-control":"private, no-store",
  "x-content-type-options":"nosniff","referrer-policy":"no-referrer",
@@ -56,8 +56,8 @@ function rawCells(value,kind){
 export function validateRawSnapshot(payload){
  fields(payload,["schema_version","document_name","classification","acknowledged","report"]);
  if(payload.schema_version!=="ANALISE_RAW_SAVE_V1"||
-    payload.classification!=="nonrestricted"||payload.acknowledged!==true)
-  reject("Дозволені лише підтверджені документи без обмежень доступу");
+    payload.classification!=="storage_authorized"||payload.acknowledged!==true)
+  reject("Необхідно підтвердити дозвіл зберігати цей документ у цьому середовищі");
  const name=string(payload.document_name,140,{empty:false});
  if(!/\.(docx|xlsx)$/i.test(name))reject("Непідтримуваний документ");
  const kind=name.toLowerCase().endsWith(".docx")?"docx":"xlsx";
@@ -139,8 +139,8 @@ const sha256=async value=>{
 export async function rawDocumentsApi(req,env,user,seg){
  if(!user||user.role!=="admin"||user.active!==1)return fail("Лише адміністратор",403);
  if(!env.DB)return fail("D1 недоступна",503);
- if(env.RAW_NONRESTRICTED_ENABLED!=="true")
-  return fail("RAW-збереження вимкнено до погодження середовища зберігання",503);
+ if(env.RAW_SAVE_ENABLED!=="true")
+  return fail("RAW-збереження вимкнено адміністратором",503);
  if(seg.length===2&&req.method==="GET"){
   try{
    const rows=await env.DB.prepare(
@@ -177,7 +177,7 @@ export async function rawDocumentsApi(req,env,user,seg){
   if(new TextEncoder().encode(text).length>LIMIT_BYTES+10_000)
    return fail("Запит перевищує ліміт",413);
   snapshot=validateRawSnapshot(JSON.parse(text));
- }catch{return fail("Неприпустимий RAW-формат або документ потребує додаткового захисту",400)}
+ }catch{return fail("Некоректні дані RAW або відсутнє підтвердження дозволу на зберігання",400)}
  try{
   const name=PREFIX+await sha256(user.id+"|"+snapshot.source_name.normalize("NFC").toLocaleLowerCase("uk-UA"));
   const raw=JSON.stringify(snapshot),hash=await sha256(raw);

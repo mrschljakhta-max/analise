@@ -4,8 +4,11 @@ compatibility_date = "2026-10-14"
 
 # Worker's public hostname MUST be covered by a Cloudflare Access application.
 # Missing Access settings cause 503/403, never unauthenticated access.
+# Permanently enabled for the approved Cloudflare storage environment.
+# This does not waive Cloudflare Access authentication or per-document consent.
 [vars]
 FILE_UPLOAD_ENABLED = "false"
+RAW_SAVE_ENABLED = "true"
 
 [[d1_databases]]
 binding = "DB"
