@@ -10,6 +10,7 @@ import {GENERIC_WORD_COLUMN_SPLIT_JS} from "./generic-word-column-split-assets.j
 import {GENERIC_AUTO_PROFILE_JS} from "./generic-auto-profile-assets.js";
 import {GENERIC_DEMO_DICTIONARY_JS} from "./generic-demo-dictionary-assets.js";
 import {GENERIC_LOCAL_REVIEW_JS} from "./generic-local-review-assets.js";
+import {demoLocalStoreApi} from "./demo-local-store-api.js";
 import {SYNTHETIC_UPLOAD_HTML,SYNTHETIC_UPLOAD_CSS} from "./synthetic-upload-assets.js";
 import {SYNTHETIC_UPLOAD_JS} from "./synthetic-upload-client.js";
 import {syntheticUploadApi} from "./synthetic-upload-api.js";
@@ -488,6 +489,7 @@ export default {
       if(seg[1]==="synthetic-upload"&&seg[2]==="versions")return await syntheticVersionsApi(req,env,user,seg);
       if(url.pathname==="/api/synthetic-upload/inspect")return await syntheticUploadApi(req,env,user);
       if(url.pathname==="/api/synthetic-upload/ingest")return await syntheticUploadApi(req,env,user);
+      if(seg[1]==="demo-local-store")return await demoLocalStoreApi(req,env,user,seg);
       if(seg[1]==="purgatory")return await purgatoryApi(req,env,user,seg);
       if(seg[1]==="contacts")return await contactApi(req,env,user,seg);
       if(seg[1]==="vp-import")return await vpSpImportApi(req,env,user,seg);
