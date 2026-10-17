@@ -1,34 +1,59 @@
-# ANALISE D1 — read-only migration drift audit
+# ANALISE — узгодження журналу міграцій D1
 
-This diagnostic does not alter D1. It only reads schema metadata and Wrangler's migration ledger using SELECT queries. It is deliberately separate from the deployment and migration workflows.
+## Виявлений стан (17.10.2026)
 
-## Known findings (operator screenshots, 17 October 2026)
+- У базі `analise-db` Wrangler-журнал `d1_migrations` містить міграції `0001`–`0015`.
+- Таблиці, тригери, індекси та view `0016` і `0019` уже фізично присутні, але відсутні в журналі. `demo_import_documents.version_id` існує.
+- Схеми `0017` і `0018` за контрольними SQL-запитами відсутні.
+- На момент перевірки: 1 версія, 1 активна версія, 76 демонстраційних Word-рядків і 114 подій аудиту; `PRAGMA quick_check = ok`.
+- Bookmark Time Travel отримано окремо від PR. У документації та логах не зберігати його значення.
 
-- Standard `d1_migrations` currently records `0001` to `0015`.
-- The expected `0016` and `0019` SQLite objects were observed by name/type, and `demo_import_documents.version_id` is present as TEXT.
-- The selected `0017` and `0018` objects were absent.
-- Presence of objects does **not** prove exact SQL-definition parity or referential/data integrity.
+## Що реалізовано в PR #30
 
-## Browser-only audit
+### Діагностика
 
-After review and merge, open **Actions → ANALISE D1 migration drift (read only) → Run workflow → main**. It uses the existing Cloudflare credentials in GitHub Actions, but the script sends **only SELECT queries** and prints only migration statuses and missing-object counts. GitHub Actions logs may be public because this repository is public; no private row contents are intentionally printed. Never paste API tokens into actions inputs or chat.
+`audit-d1-migrations.yml` — ручний workflow без записів у БД. Порівнює наявність і типи SQL-об'єктів з журналом `d1_migrations`.
 
-The scripts can also run inside a trusted environment with Wrangler installed:
+### Контрольоване виправлення
 
-```bash
-cd api
-node scripts/audit-d1-migrations.mjs
-```
+`reconcile-d1-migrations.yml` — окремий **лише ручний** workflow, який запускається тільки з `main`.
 
-Environment variables `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` must be available.
+Перед записом код:
+1. Перевіряє наявність рівно початкової історії `0001`–`0015`, що відповідає іменам SQL-файлів репозиторію.
+2. Перевіряє повні SQL-визначення **усіх 18** об'єктів `0016` та `0019` проти вихідних файлів. Порівняння суворе: відмінність зупиняє виконання.
+3. Перевіряє колонку `version_id` та зовнішній ключ на `demo_report_versions`.
+4. Вимагає `PRAGMA quick_check = ok` і порожній результат `PRAGMA foreign_key_check`.
+5. Читає лише агреговану кількість версій, рядків і подій, не вміст документів.
+6. Перевіряє, що `0017` та `0018` відсутні й у журналі, й у відповідних об'єктах.
+7. Якщо журнал уже узгоджений, завершується без записів.
 
-## Before any change
+Тільки після цих перевірок запускається **одна атомарна SQL-команда**, яка записує рівно два імені у `d1_migrations`:
+- `0016_synthetic_report_versions.sql`;
+- `0019_synthetic_word_records.sql`.
 
-1. Check **Cloudflare D1 → analise-db → Time Travel** and retain the current bookmark. Cloudflare creates Time Travel bookmarks automatically, and their retention depends on the plan. Restoration is destructive.
-2. Compare all relevant full SQL definitions in `sqlite_master.sql` with the migration source, and inspect the `demo_import_documents.version_id` column and foreign keys. This script checks **names/types only**.
-3. Verify `PRAGMA foreign_key_check;` returns **zero rows**, and ensure no other migration workflow is running.
-4. Do **not** run `migrate-d1.yml` while existing 0016/0019 objects are missing from `d1_migrations`; rerunning ALTER TABLE may fail.
-5. Only after a human review of exact SQL definitions and a recorded rollback point, prepare a separate change that reconciles `d1_migrations`. Do not insert ledger rows solely based on this script's output.
-6. Decide on 0017 and 0018 separately; they are outside the dedicated synthetic Word migration script.
+Ця команда має додаткові перевірки поточного стану журналу й відсутності схем `0017/0018`. **Вона не виконує SQL із файлів міграцій і не створює та не змінює прикладні таблиці.** Після виконання код заново перевіряє всі умови й порівнює агреговані кількості записів.
 
-No INSERT, UPDATE, DELETE, ALTER, CREATE, DROP, migration apply, restore or deploy is performed by this tool. Running the audit does **not** authorize running the general migration workflow.
+Якщо хоч одна перевірка не пройдена — код зупиняється. Після помилки **не запускати** загальну міграцію автоматично й не відновлювати базу без окремого аналізу.
+
+## Послідовність для оператора
+
+1. Оглянути і протестувати PR #30. Він є чернеткою, не злитий у `main`.
+2. Перевірити, що збережено свіжий Time Travel bookmark (у межах актуального терміну зберігання Cloudflare) і що не відбуваються інші зміни схеми.
+3. За окремим рішенням після code review — злити PR у `main`. Сам merge **не змінює** D1.
+4. У GitHub Actions відкрити **ANALISE D1 ledger reconciliation (manual only)**.
+5. Обрати гілку `main`, у полі `confirm` ввести точно `RECONCILE_0016_0019_ONLY`, позначити `bookmark_saved=true` та вручну натиснути Run workflow.
+6. Перевірити успішний результат і назви в `d1_migrations`. `0017` і `0018` залишаються незастосованими.
+7. Окремо визначити політику майбутнього застосування `0017/0018`. **Не запускати `migrate-d1.yml` автоматично.**
+
+Не додавати bookmark, токени, оригінали документів або службові записи в public GitHub Actions.
+
+## Обмеження
+
+- Це спеціалізований ремонт **тільки** цієї відомої історії міграцій; він не підходить для довільних баз.
+- Порівняння SQL може відхилити еквівалентні SQL-визначення через різну нормалізацію. Це безпечна відмова, а не причина вимикати перевірку.
+- Скрипт не замінює незалежного бекапу, рев'ю доступів і погодження чутливих даних.
+- Єдина дозволена мутація — додавання двох рядків до журналу міграцій за явною дією оператора.
+
+## Тести
+
+`node --test tests/d1-migration-drift.test.js tests/d1-migration-reconcile.test.js`
