@@ -1,0 +1,36 @@
+name: ANALISE D1 migration drift (read only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: analise-d1-readonly-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: Inspect migration history and schema (SELECT only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Test read-only reconciliation logic
+        run: node --test tests/d1-migration-drift.test.js
+      - name: Inspect D1 schema and ledger, without writes
+        run: node scripts/audit-d1-migrations.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
