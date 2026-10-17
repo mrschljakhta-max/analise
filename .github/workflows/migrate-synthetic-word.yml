@@ -45,7 +45,7 @@ jobs:
       - name: Test synthetic migrations and Word row storage
         working-directory: api
         run: |
-          node --test tests/synthetic-word-migration-plan.test.js tests/synthetic-word-finalized.test.js
+          node --test tests/synthetic-word-migration-plan.test.js tests/synthetic-word-remote-runner.test.js tests/synthetic-word-finalized.test.js
           npx wrangler deploy --dry-run --outdir /tmp/analise-word-bundle
 
       # Read sqlite_master/PRAGMA instead of querying a missing 0016 table.
