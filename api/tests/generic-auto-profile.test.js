@@ -34,6 +34,18 @@ test("automatic Word recognition: 79 rows, 76 records, two groups",()=>{
   "19:25 10.10.2026","Документ","1 Прикладове","Зареєстровано"
  ]);
 });
+test("Word keeps exact unmodified raw text alongside normalized fields",()=>{
+ const t={format:"docx",sheet:"Таблиця",rows:[
+  [cell("Дата, час"),cell("Категорія"),cell("Число і текст"),cell("Статус")],
+  [cell("19:25   10.10.2026"),cell("  Вантаж  "),cell(" 87  Прикладове "),cell("Ок")],
+  [cell("19:25 10.10.2026"),cell("Вантаж"),cell("89 Нова Долина"),cell("Ок")]
+ ]};
+ const parsed=auto.inspect([ctx.AnaliseWordColumnSplit.transform(t)]);
+ assert.equal(parsed.records,2);
+ assert.equal(parsed.tables[0].records[0].raw_cells[0],"19:25   10.10.2026");
+ assert.equal(parsed.tables[0].records[0].raw_cells[1],"  Вантаж  ");
+ assert.equal(parsed.tables[0].records[0].raw_cells[2]," 87  Прикладове ");
+});
 test("invalid Word row remains in output with validation issue",()=>{
  const t=demoWord();
  t.rows[3][0].value="31.02.2026";
