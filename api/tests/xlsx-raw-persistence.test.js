@@ -42,7 +42,7 @@ function db(){
    rows.push({id,report_name,version,snapshot_json,created_by,created_at});
    return {meta:{changes:1}};
   }
- }};}}};
+ };}}};
 }
 const admin={id:"approved-admin",role:"admin",active:1};
 function request(method,body,url="https://example.invalid/api/raw-documents"){
