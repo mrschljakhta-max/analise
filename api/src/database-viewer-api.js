@@ -1,3 +1,4 @@
+import {literalUnicodeGlob} from "./unicode-search.js";
 // ANALISE curated D1 database explorer.
 // Absolutely no raw table names, SQL, column paths, or filter fragments supplied by clients.
 // Never expose operational rows, coordinates, contact information, user accounts, or raw OOXML.
@@ -147,16 +148,12 @@ const paramsCheck=p=>{
  if(!SORTS.includes(sort))throw Error("Непідтримуване сортування");
  return {q,offset:Number(offsetStr),sort,filter:p.get("filter")||"all"};
 };
-const pattern=q=>"%"+q.replace(/[\\%_]/g,c=>"\\"+c)+"%";
-const titleCase=q=>{
- const lower=q.toLocaleLowerCase("uk-UA");
- return lower.slice(0,1).toLocaleUpperCase("uk-UA")+lower.slice(1);
-};
 function listing(d,{q,offset,sort,filter}){
  const where=d.where+" AND ("+d.filters[filter]+")";
- const search=" AND ("+d.search.map(x=>"(LOWER("+x+") LIKE ? ESCAPE '\\' OR "+x+" LIKE ? ESCAPE '\\')").join(" OR ")+")";
+ // Literal Unicode GLOB search; avoid SQLite's ASCII-only LIKE/LOWER.
+ const search=" AND ("+d.search.map(x=>"("+x+" GLOB ?)").join(" OR ")+")";
  const sqlBase=" FROM "+d.from+" WHERE "+where+search;
- const binds=d.search.flatMap(()=>[pattern(q.toLocaleLowerCase("uk-UA")),pattern(titleCase(q))]);
+ const binds=d.search.map(()=>literalUnicodeGlob(q));
  return {
   count:"SELECT COUNT(*) AS n"+sqlBase,
   query:"SELECT "+d.select+sqlBase+" ORDER BY "+d.order[sort]+" LIMIT 26 OFFSET ?",
