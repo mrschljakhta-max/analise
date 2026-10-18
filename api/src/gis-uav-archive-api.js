@@ -88,8 +88,9 @@ async function missingColumns(db,table){
 async function archiveSources(db,year){
  const snapshot=await db.prepare(ARCHIVE_SOURCE_SQL).all();
  const existing=new Set((snapshot.results||[]).map(row=>row.name));
- const structuredPresent=existing.has("operational_report_events")&&
-  existing.has("operational_report_sessions");
+ const missingTables=["operational_report_events","operational_report_sessions"]
+  .filter(table=>!existing.has(table));
+ const structuredPresent=missingTables.length===0;
  const missing=[];
  let columnCheckFailed=false;
  for(const table of ["operational_report_events","operational_report_sessions"]){
@@ -123,8 +124,8 @@ async function archiveSources(db,year){
   (structuredState==="missing"||structuredState==="incompatible") ||
   ledger==="not_registered"&&structuredState==="present";
  return {structured_tables:structuredState,raw,
-  schema_diagnostics:{missing_columns:missing,ledger_0018:ledger,
-   ledger_discrepancy:ledgerDiscrepancy}};
+  schema_diagnostics:{missing_tables:missingTables,missing_columns:missing,
+   ledger_0018:ledger,ledger_discrepancy:ledgerDiscrepancy}};
 }
 function blankQuarters(period){
  return Array.from({length:period.eligibleQuarters},(_,index)=>({
