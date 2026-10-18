@@ -159,16 +159,21 @@ export async function rawDocumentsApi(req,env,user,seg){
  if(env.RAW_SAVE_ENABLED!=="true")
   return fail("RAW-збереження вимкнено адміністратором",503);
  if(seg.length===2&&req.method==="GET"){
+  const param=new URL(req.url).searchParams.get("offset")||"0";
+  if(!/^(?:0|[1-9][0-9]{0,5})$/.test(param)||Number(param)>999999)
+   return fail("Некоректний номер сторінки",400);
+  const offset=Number(param);
   try{
    const rows=await env.DB.prepare(
     "SELECT id,report_name,version,created_at,snapshot_json FROM report_versions "+
-    "WHERE report_name GLOB 'ANALISE-RAW-V1:*' ORDER BY created_at DESC,id DESC LIMIT 30"
-   ).all();
-   return response({items:(rows.results||[]).map(r=>{
+    "WHERE report_name GLOB 'ANALISE-RAW-V1:*' ORDER BY created_at DESC,id DESC LIMIT 31 OFFSET ?"
+   ).bind(offset).all();
+   const available=rows.results||[];
+   return response({items:available.slice(0,30).map(r=>{
     const data=JSON.parse(r.snapshot_json);
     return {id:r.id,version:r.version,created_at:r.created_at,
      source_name:data.source_name,record_count:data.record_count,review_status:data.review_status};
-   })});
+   }),has_more:available.length>30,offset});
   }catch{return fail("Не вдалося прочитати реєстр RAW",503)}
  }
  if(seg.length===3&&req.method==="GET"){
