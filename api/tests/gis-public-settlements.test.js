@@ -131,3 +131,50 @@ test("real civilian D1 layer is auto-enabled and interactive, never supplied by 
  assert.ok(!GIS_PUBLIC_SETTLEMENTS_JS.includes("getPoints()"));
  assert.match(GIS_PUBLIC_SETTLEMENTS_CSS,/gisp-public-controls/);
 });
+
+test("empty viewport distinguishes genuinely empty directory from missing coordinates",async()=>{
+ const statements=[];
+ const env={DB:{prepare(sql){
+  statements.push(sql);
+  if(sql.includes("COUNT(*) AS active"))return {first:async()=>({active:120,geocoded:0})};
+  return {bind(...args){return {all:async()=>({results:[]})}}};
+ }}};
+ const res=await gisPublicSettlementsApi(new Request(url),env,admin);
+ assert.equal(res.status,200);
+ const data=await res.json();
+ assert.equal(data.items.length,0);
+ assert.deepEqual(data.source_health,{status:"available",active:120,geocoded:0});
+ assert.equal(statements.length,2);
+ assert.ok(statements.every(sql=>!/(?:\bINSERT\b|\bUPDATE\b|\bDELETE\b|\bDROP\b|\bALTER\b)/i.test(sql)));
+ assert.ok(statements.every(sql=>!/(?:operational_report_events|station_name|mgrs)/i.test(sql)));
+});
+test("empty viewport with geocoded records stays an empty viewport, not a blank database",async()=>{
+ const env={DB:{prepare(sql){
+  if(sql.includes("COUNT(*) AS active"))return {first:async()=>({active:215,geocoded:211})};
+  return {bind(){return {all:async()=>({results:[]})}}};
+ }}};
+ const data=await (await gisPublicSettlementsApi(new Request(url),env,admin)).json();
+ assert.equal(data.items.length,0);
+ assert.deepEqual(data.source_health,{status:"available",active:215,geocoded:211});
+});
+test("failure of optional count diagnostics never fabricates zero archive records",async()=>{
+ const env={DB:{prepare(sql){
+  if(sql.includes("COUNT(*) AS active"))return {first:async()=>{throw Error("private D1 error")}};
+  return {bind(){return {all:async()=>({results:[]})}}};
+ }}};
+ const data=await (await gisPublicSettlementsApi(new Request(url),env,admin)).json();
+ assert.equal(data.items.length,0);
+ assert.deepEqual(data.source_health,{status:"unavailable"});
+ assert.doesNotMatch(JSON.stringify(data),/private D1 error/);
+});
+test("map movement renders once per animation frame and reads D1 only on actual viewport changes",()=>{
+ assert.match(GIS_PREVIEW_JS,/panFrame=requestAnimationFrame/);
+ assert.match(GIS_PREVIEW_JS,/panDx\+=e.clientX-pointer.x/);
+ assert.match(GIS_PREVIEW_JS,/wheelAccum\+=e.deltaY/);
+ assert.match(GIS_PREVIEW_JS,/lastWheelZoom<150/);
+ assert.match(GIS_PREVIEW_JS,/map.clientWidth!==lastMapWidth/);
+ assert.match(GIS_PUBLIC_SETTLEMENTS_JS,/key===scheduledKey\|\|key===completedKey/);
+ assert.match(GIS_PUBLIC_SETTLEMENTS_JS,/completedKey=key/);
+ assert.match(GIS_PUBLIC_SETTLEMENTS_JS,/source_health/);
+ assert.doesNotMatch(GIS_PUBLIC_SETTLEMENTS_JS,/\/api\/(?:operational-reports|raw-documents|gis\/stations)/);
+});
