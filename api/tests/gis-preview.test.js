@@ -49,3 +49,17 @@ test("ANALISE navigation adds a map link for admins without altering existing li
  assert.ok(GLOBAL_NAV_JS.includes("href:'/api/dashboard'"));
  assert.ok(GLOBAL_NAV_JS.includes("href:'/api/saved-documents'"));
 });
+
+test("eastern Ukraine is the initial preview extent and reset target",()=>{
+ assert.ok(GIS_PREVIEW_JS.includes("const BASE={lat:48.6,lon:37.6,zoom:7}"));
+ assert.ok(GIS_PREVIEW_HTML.includes("РАЙОН: СХІД УКРАЇНИ · ТЕСТ"));
+ assert.ok(GIS_PREVIEW_HTML.includes("Інтерактивна карта сходу України."));
+ assert.ok(GIS_PREVIEW_HTML.includes("До центру карти"));
+ assert.ok(GIS_PREVIEW_HTML.includes("ZOOM 7"));
+ assert.ok(GIS_PREVIEW_JS.includes("Object.assign(state,BASE);state.selected=null;inspector(null);render()"));
+ assert.ok(GIS_PREVIEW_JS.includes("Object.assign(state,BASE);render()"));
+ const values=[["49.00","36.30"],["48.57","39.30"],["48.01","37.80"]];
+ for(const [lat,lon] of values) assert.ok(GIS_PREVIEW_JS.includes("lat:"+lat+",lon:"+lon));
+ assert.doesNotMatch(GIS_PREVIEW_JS,/Лісабон|38\.720|38\.743|38\.704|-9\.140|-9\.110|-9\.194/);
+ assert.doesNotMatch(GIS_PREVIEW_HTML,/ЛІСАБОН|Лісабона|ZOOM 11|38\.7200/);
+});
