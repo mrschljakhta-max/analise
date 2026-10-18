@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {Script} from "node:vm";
 import {readFileSync} from "node:fs";
-import {uavArchiveCutoff,parseUavArchiveRange,ARCHIVE_SQL,ARCHIVE_SOURCE_SQL,ARCHIVE_RAW_SQL,archivedUavSummary} from "../src/gis-uav-archive-api.js";
+import {uavArchiveCutoff,parseUavArchiveRange,ARCHIVE_SQL,ARCHIVE_SOURCE_SQL,ARCHIVE_RAW_SQL,ARCHIVE_COLUMNS_SQL,ARCHIVE_MIGRATION_SQL,archivedUavSummary} from "../src/gis-uav-archive-api.js";
 import {GIS_UAV_ARCHIVE_HTML,GIS_UAV_ARCHIVE_CSS,GIS_UAV_ARCHIVE_JS} from "../src/gis-uav-archive-assets.js";
 import {GIS_PREVIEW_HTML} from "../src/gis-preview-assets.js";
 import {GIS_HISTORY_HTML} from "../src/gis-history-assets.js";
@@ -14,8 +14,21 @@ const url="https://example.invalid/api/gis-uav-archive/data?year=2026";
 function withSourceProbe(handler,options={}){
  const names=options.names??["operational_report_events","operational_report_sessions","report_versions"];
  const raw=options.raw??{versions:17,rows_saved:1168};
+ const columns=options.columns??{
+  operational_report_events:["session_id","source_type","event_datetime","uav_type"],
+  operational_report_sessions:["id","status"],
+  report_versions:["report_name","snapshot_json","created_at"]
+ };
  return {DB:{prepare(sql){
   if(sql===ARCHIVE_SOURCE_SQL)return {all:async()=>({results:names.map(name=>({name}))})};
+  if(sql===ARCHIVE_COLUMNS_SQL)return {bind(table){return {async all(){
+   if(options.failColumns===table)throw Error("private schema failure");
+   return {results:(columns[table]??[]).map(name=>({name}))};
+  }}}};
+  if(sql===ARCHIVE_MIGRATION_SQL)return {bind(name){
+   assert.equal(name,"0018_operational_reports.sql");
+   return {first:async()=>({applied:options.ledgerApplied??0})};
+  }};
   if(sql===ARCHIVE_RAW_SQL)return {bind(year){
    assert.match(String(year),/^[0-9]{4}$/);
    return {first:async()=>raw};
@@ -196,6 +209,67 @@ test("diagnostic SQL is read-only, bounded, and does not access operational deta
  assert.match(ARCHIVE_RAW_SQL,/COUNT\(\*\) AS versions/);
  assert.match(ARCHIVE_RAW_SQL,/ANALISE-RAW-V1/);
  assert.doesNotMatch(ARCHIVE_RAW_SQL,/raw_cells|raw_json|coordinates|mgrs|station_name/i);
- for(const q of [ARCHIVE_SOURCE_SQL,ARCHIVE_RAW_SQL])
+ assert.match(ARCHIVE_COLUMNS_SQL,/^SELECT name FROM pragma_table_info\\(\\?\\)$/);
+ assert.match(ARCHIVE_MIGRATION_SQL,/^SELECT COUNT\\(\\*\\) AS applied FROM d1_migrations/);
+ for(const q of [ARCHIVE_SOURCE_SQL,ARCHIVE_RAW_SQL,ARCHIVE_COLUMNS_SQL,ARCHIVE_MIGRATION_SQL])
   assert.doesNotMatch(q,/\b(?:INSERT|UPDATE|DELETE|DROP|ALTER)\b/i);
+});
+
+
+test("read-only schema inspection distinguishes incompatible columns from missing tables",async()=>{
+ const env=withSourceProbe(()=>{throw Error("aggregates must not be attempted")},{
+  columns:{
+   operational_report_events:["session_id","source_type","uav_type"],
+   operational_report_sessions:["id","status"],
+   report_versions:["report_name","snapshot_json","created_at"]
+  }
+ });
+ const response=await archivedUavSummary(new Request(url),env,actor,now);
+ assert.equal(response.status,503);
+ const data=await response.json();
+ assert.equal(data.source_status,"schema_incompatible");
+ assert.deepEqual(data.schema_diagnostics.missing_columns,["operational_report_events.event_datetime"]);
+ assert.equal(data.raw_archive.status,"available");
+ assert.equal(data.raw_archive.versions,17);
+ assert.ok(data.quarters.every(q=>q.categories.every(c=>c.count===null)));
+});
+test("inaccessible schema inspection is not mistaken for absent data",async()=>{
+ const env=withSourceProbe(()=>{throw Error("do not query events")},{
+  failColumns:"operational_report_events"
+ });
+ const response=await archivedUavSummary(new Request(url),env,actor,now);
+ assert.equal(response.status,503);
+ const data=await response.json();
+ assert.equal(data.source_status,"schema_check_failed");
+ assert.doesNotMatch(JSON.stringify(data),/private schema failure/);
+});
+test("incompatible RAW columns are reported independently of usable structured data",async()=>{
+ const env=withSourceProbe(()=>({bind(){return{async all(){return{results:[]}}}}}),{
+  columns:{
+   operational_report_events:["session_id","source_type","event_datetime","uav_type"],
+   operational_report_sessions:["id","status"],
+   report_versions:["created_at","snapshot_json"]
+  }
+ });
+ const response=await archivedUavSummary(new Request(url),env,actor,now);
+ const data=await response.json();
+ assert.equal(data.source_status,"structured_available");
+ assert.equal(data.raw_archive.status,"schema_incompatible");
+});
+test("migration ledger and real schema are independent and discrepancies are only advisory",async()=>{
+ const missing=withSourceProbe(()=>{throw Error("do not query")},{
+  names:["report_versions","d1_migrations"],ledgerApplied:1
+ });
+ const a=await (await archivedUavSummary(new Request(url),missing,actor,now)).json();
+ assert.equal(a.source_status,"schema_missing");
+ assert.equal(a.schema_diagnostics.ledger_0018,"registered");
+ assert.equal(a.schema_diagnostics.ledger_discrepancy,true);
+ const existing=withSourceProbe(()=>({bind(){return{all:async()=>({results:[]})}}}),{
+  names:["report_versions","operational_report_events","operational_report_sessions","d1_migrations"],
+  ledgerApplied:0
+ });
+ const b=await (await archivedUavSummary(new Request(url),existing,actor,now)).json();
+ assert.equal(b.source_status,"structured_available");
+ assert.equal(b.schema_diagnostics.ledger_0018,"not_registered");
+ assert.equal(b.schema_diagnostics.ledger_discrepancy,true);
 });
