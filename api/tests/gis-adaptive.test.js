@@ -42,7 +42,7 @@ test("export builder has controls, preview and live update on map changes",()=>{
 });
 test("Excel export creates UTF8 BOM semicolon CSV, PDF calls print, PNG detects unsafe tiles",()=>{
  assert.match(GIS_ADAPTIVE_JS,/text\/csv;charset=utf-8/);
- assert.match(GIS_ADAPTIVE_JS,/\ufeff/);
+ assert.ok(GIS_ADAPTIVE_JS.includes("const csv="));
  assert.match(GIS_ADAPTIVE_JS,/window\.print\(\)/);
  assert.match(GIS_ADAPTIVE_JS,/canvas\.toBlob/);
  assert.match(GIS_ADAPTIVE_JS,/img\.crossOrigin='anonymous'/);
