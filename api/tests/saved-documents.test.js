@@ -136,7 +136,7 @@ test("Saved Documents UI and admin menu are protected and rendered as scripts",a
  assert.match(SAVED_DOCUMENTS_HTML,/id="sd-queue"/);
  assert.match(SAVED_DOCUMENTS_CSS,/prefers-reduced-motion/);
  assert.match(GLOBAL_NAV_JS,/Збережені документи/);
- assert.match(SAVED_DOCUMENTS_JS,/\\/api\\/raw-review\\//);
+ assert.ok(SAVED_DOCUMENTS_JS.includes('/api/raw-review/'));
  const unauthorized=await worker.fetch(new Request("https://unit.example/api/saved-documents"),{});
  assert.equal(unauthorized.status,503);
 });
