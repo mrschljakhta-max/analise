@@ -151,6 +151,9 @@ test("browser dashboard compiles, renders only aggregated data, and exports pre-
  assert.ok(GIS_UAV_ARCHIVE_JS.includes("/api/gis-uav-archive/data?year="));
  assert.ok(GIS_UAV_ARCHIVE_JS.includes("new Blob"));
  assert.ok(GIS_UAV_ARCHIVE_HTML.includes('id="ua-raw-source"'));
+ assert.ok(GIS_UAV_ARCHIVE_HTML.includes('id="ua-schema-source"'));
+ assert.ok(GIS_UAV_ARCHIVE_JS.includes("state==='schema_incompatible'"));
+ assert.ok(GIS_UAV_ARCHIVE_JS.includes("ledger_discrepancy"));
  assert.ok(GIS_UAV_ARCHIVE_JS.includes("source_status==='schema_missing'"));
  assert.ok(GIS_UAV_ARCHIVE_JS.includes("RAW у D1 за роком завантаження"));
  assert.ok(GIS_UAV_ARCHIVE_JS.includes("text/csv;charset=utf-8"));
