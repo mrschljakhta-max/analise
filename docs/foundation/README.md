@@ -15,7 +15,7 @@ Architecture: **one GitHub monorepo**, two logical applications.
 | FND-001 | Existing monorepo plus CODEOWNERS file | PARTIAL: `main` branch rules require GitHub admin action |
 | FND-002 | GIS Foundation CI, Node tests, typechecks, build and secret-pattern guard | PARTIAL: no lockfile / `npm ci`; no real staging E2E |
 | FND-003 | Versioned Workspace/Project/Dataset/Layer/Feature contracts | PARTIAL: no API or schema integration |
-| FND-004/005 | Independent three-environment resource templates and separation test | BLOCKED: provision real D1/R2/KV/Queues and Access, verify binding IDs |
+| FND-004/005 | Independent resource templates, provisioning and real-inventory verification via opt-in GitHub Actions workflow | PARTIAL: real Cloudflare resources not yet verified as created; Access/negative runtime tests outstanding |
 | FND-006/009 | GIS API always denies data reads/writes pending resource RBAC; existing ANALISE `/api/files` list/upload/download now requires an active `admin` | PARTIAL: no per-workspace membership, object-level permissions or negative IDOR suite for GIS yet |
 | FND-007/008 | Standalone synthetic React/MapLibre UI shell with themes and density | PARTIAL: requires CI build evidence and later user approval to integrate into ANALISE |
 | FND-010...018 | Design/POC/DR/acceptance work pending | NOT ACCEPTED |
@@ -23,7 +23,7 @@ Architecture: **one GitHub monorepo**, two logical applications.
 ## Cloudflare operations — do not shortcut
 
 1. Inventory current resources and read `d1_migrations` / `sqlite_master` **read-only**. The existing 0016/0019 schema-vs-ledger divergence must be reconciled separately.
-2. Provision distinct GIS Dev and Staging **real** Cloudflare resources; avoid binding production D1 to non-production GIS Workers.
+2. Provision distinct GIS Dev and Staging **real** Cloudflare resources via the manually gated workflow described in [cloudflare-dev-staging-provision.md](./cloudflare-dev-staging-provision.md); avoid binding production D1 to non-production GIS Workers.
 3. Verify Cloudflare Access and service-token scopes individually. Never commit Access secrets/tokens into GitHub.
 4. Run negative cross-environment tests and prove staging cannot read/write production.
 5. Only then begin GIS resource schema / R2 revision-manifest POC, and separately review production resources.
@@ -48,3 +48,7 @@ Run this synthetic-only preview locally; it has no connection to Cloudflare or t
 ## Change in existing ANALISE file permissions
 
 As a conservative interim control, the previously general authenticated `/api/files` listing, download and upload routes now require `user.role === "admin"` and `active === 1`. Existing administrator workflows remain; nonadmins receive HTTP 403 before any D1 or R2 access. This is **not** object-scoped RBAC: delegated access remains blocked until explicit ACLs and IDOR tests are implemented. RAW document routes and existing Purgatory data have not been modified.
+
+## FND-004 implementation update · 2026-10-18
+
+The dedicated [GIS Cloudflare environment provisioning](../../.github/workflows/gis-cloudflare-provision.yml) workflow now supports offline plan, read-only verify, and opt-in create for **dev/staging only**. It uses a separate GitHub API token, prechecks all four resources before creation, and refuses adoption/overwrite of pre-existing names. It does **not** provision automatically on push. Actual account-side creation and runtime cross-environment isolation must be confirmed before marking FND-004 PASS.
