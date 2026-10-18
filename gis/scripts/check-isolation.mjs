@@ -1,6 +1,7 @@
 import {readFileSync} from "node:fs";
 const names=["dev","staging","production"];
-export function verifyTemplates(templates=Object.fromEntries(names.map(e=>[e,readFileSync(new URL("../infra/wrangler."+e+".toml.example",import.meta.url),"utf8")])))){
+export function verifyTemplates(templates){
+ templates??=Object.fromEntries(names.map(e=>[e,readFileSync(new URL("../infra/wrangler."+e+".toml.example",import.meta.url),"utf8")]));
  const seen=new Set();
  for(const env of names){
   const text=templates[env];if(typeof text!=="string")throw Error("Missing template: "+env);
