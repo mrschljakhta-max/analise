@@ -1,0 +1,50 @@
+name: GIS cloud binding audit
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "audit inventory only, or bundle local Wrangler configs without deployment"
+        required: true
+        type: choice
+        default: audit
+        options: [audit, bundle]
+permissions:
+  contents: read
+
+concurrency:
+  group: gis-cloudflare-binding-audit
+  cancel-in-progress: false
+
+jobs:
+  verify-real-bindings:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prove local audit code rejects cross-environment and ANALISE production bindings
+        run: |
+          node --test gis/tests/cloudflare-binding-audit.test.mjs
+          node gis/scripts/check-isolation.mjs
+      - name: Compare Dev/Staging D1 R2 KV Queue identities against real Cloudflare inventory
+        env:
+          GIS_BINDINGS_MODE: ${{ inputs.operation }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_GIS_PROVISION_TOKEN: ${{ secrets.CLOUDFLARE_GIS_PROVISION_TOKEN }}
+        run: node gis/scripts/audit-cloud-bindings.mjs
+      - name: Verify ephemeral config values are prepared but NOT committed
+        if: ${{ inputs.operation == 'bundle' }}
+        run: |
+          test -f gis/infra/wrangler.dev.toml
+          test -f gis/infra/wrangler.staging.toml
+          git check-ignore -q gis/infra/wrangler.dev.toml
+          git check-ignore -q gis/infra/wrangler.staging.toml
+          ! grep -Eq '(UUID_REQUIRED|_KV_ID_REQUIRED)' gis/infra/wrangler.dev.toml
+          ! grep -Eq '(UUID_REQUIRED|_KV_ID_REQUIRED)' gis/infra/wrangler.staging.toml
+          test ! -s gis/infra/wrangler.production.toml
+          rm -f gis/infra/wrangler.dev.toml gis/infra/wrangler.staging.toml
+# Read-only Cloudflare API: no Workers deploy, R2 uploads, D1 migration or artifact with IDs.
