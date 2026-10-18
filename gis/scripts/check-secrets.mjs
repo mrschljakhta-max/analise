@@ -13,4 +13,4 @@ function inspect(dir){
   checked++;
  }
 }
-inspect("gis");console.log("PASS GIS basic secret guard ("+checked+" files); external scanning still required.");
+inspect(".");console.log("PASS GIS basic secret guard ("+checked+" files); external scanning still required.");
