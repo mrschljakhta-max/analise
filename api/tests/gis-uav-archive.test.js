@@ -184,6 +184,8 @@ test("missing structured schema returns legitimate RAW archive metadata rather t
  assert.equal(response.status,200);
  const data=await response.json();
  assert.equal(data.source_status,"schema_missing");
+ assert.deepEqual(data.schema_diagnostics.missing_tables,
+  ["operational_report_events","operational_report_sessions"]);
  assert.equal(data.state,"source_unavailable");
  assert.equal(data.raw_archive.status,"available");
  assert.equal(data.raw_archive.versions,17);
@@ -197,6 +199,8 @@ test("both RAW and structured tables absent produce a clear missing-schema statu
  assert.equal(response.status,200);
  const data=await response.json();
  assert.equal(data.source_status,"schema_missing");
+ assert.deepEqual(data.schema_diagnostics.missing_tables,
+  ["operational_report_events","operational_report_sessions"]);
  assert.equal(data.raw_archive.status,"missing");
 });
 test("database catalog lookup failure is not mislabeled as migration mismatch",async()=>{
@@ -275,4 +279,24 @@ test("migration ledger and real schema are independent and discrepancies are onl
  assert.equal(b.source_status,"structured_available");
  assert.equal(b.schema_diagnostics.ledger_0018,"not_registered");
  assert.equal(b.schema_diagnostics.ledger_discrepancy,true);
+});
+
+test("read-only production D1 audit workflow never runs migrations or reads rows",()=>{
+ const workflow=readFileSync(new URL("../../.github/workflows/audit-d1-readonly.yml",import.meta.url),"utf8");
+ assert.match(workflow,/workflow_dispatch:/);
+ assert.match(workflow,/wrangler d1 execute analise-db --remote/);
+ assert.equal((workflow.match(/--command=/g)||[]).length,2);
+ assert.match(workflow,/FROM sqlite_master/);
+ assert.match(workflow,/FROM pragma_table_info/);
+ assert.doesNotMatch(workflow,/\b(?:INSERT|UPDATE|DELETE|DROP|ALTER)\b|migrations apply/i);
+});
+test("partial structured schema names only the absent allowlisted table",async()=>{
+ const env=withSourceProbe(()=>{throw Error("not structurally complete")},{
+  names:["operational_report_events","report_versions"]
+ });
+ const response=await archivedUavSummary(new Request(url),env,actor,now);
+ const data=await response.json();
+ assert.equal(data.source_status,"schema_missing");
+ assert.deepEqual(data.schema_diagnostics.missing_tables,["operational_report_sessions"]);
+ assert.equal(data.raw_archive.status,"available");
 });
