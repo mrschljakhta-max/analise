@@ -40,6 +40,7 @@ import {GIS_PUBLIC_SETTLEMENTS_JS,GIS_PUBLIC_SETTLEMENTS_CSS} from "./gis-public
 import {GIS_TRAINING_LAYERS_JS,GIS_TRAINING_LAYERS_CSS} from "./gis-training-layers-assets.js";
 import {gisReferenceSummaryApi} from "./gis-reference-summary-api.js";
 import {gisCivilRegionsApi} from "./gis-civil-regions-api.js";
+import {gisCivilGridApi} from "./gis-civil-grid-api.js";
 import {GIS_OVERVIEW_JS,GIS_OVERVIEW_CSS} from "./gis-overview-assets.js";
 import {GIS_HISTORY_HTML,GIS_HISTORY_CSS,GIS_HISTORY_JS} from "./gis-history-assets.js";
 import {historicalAuditApi} from "./gis-history-api.js";
@@ -381,6 +382,7 @@ export default {
       // Map data: geographically plot public settlements only.
       if(url.pathname==="/api/gis/settlements")return gisPublicSettlementsApi(req,env,user);
       if(url.pathname==="/api/gis/settlement-regions")return gisCivilRegionsApi(req,env,user);
+      if(url.pathname==="/api/gis/civil-grid")return gisCivilGridApi(req,env,user);
       // Distinct admin-only D1 reference counts; no geographic military layer.
       if(url.pathname==="/api/gis/reference-summary")return gisReferenceSummaryApi(req,env,user);
       // Access-protected map assets; separate public settlement overlay stays opt-in.
