@@ -82,9 +82,9 @@ test("exporting and layout adjustments are entirely browser-local",()=>{
 
 test("wide mode ribbon is removed and original map gets the reclaimed space",()=>{
  assert.doesNotMatch(GIS_ADAPTIVE_JS,/gisp-modebar|gisp-mode-links|gisp-layout-toggle|gisp-export-open/);
- assert.doesNotMatch(GIS_ADAPTIVE_CSS,/\\.gisp-modebar\\s*\\{/);
- assert.match(GIS_ADAPTIVE_CSS,/height:calc\\(100dvh - 138px\\)/);
+ assert.ok(!GIS_ADAPTIVE_CSS.includes(".gisp-modebar{"));
+ assert.ok(GIS_ADAPTIVE_CSS.includes("height:calc(100dvh - 138px)"));
  assert.ok(GIS_ADAPTIVE_JS.includes("gisp-mode-select"));
  assert.ok(GIS_ADAPTIVE_JS.includes("gisp-map-actions"));
- assert.ok(GIS_ADAPTIVE_JS.includes("data-map-tool=\"export\""));
+ assert.ok(GIS_ADAPTIVE_JS.includes('data-map-tool="export"'));
 });
