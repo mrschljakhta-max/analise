@@ -63,3 +63,33 @@ test("eastern Ukraine is the initial preview extent and reset target",()=>{
  assert.doesNotMatch(GIS_PREVIEW_JS,/Лісабон|38\.720|38\.743|38\.704|-9\.140|-9\.110|-9\.194/);
  assert.doesNotMatch(GIS_PREVIEW_HTML,/ЛІСАБОН|Лісабона|ZOOM 11|38\.7200/);
 });
+
+test("inverse Mercator longitude preserves real civil D1 viewport coordinates",()=>{
+ const start=GIS_PREVIEW_JS.indexOf(" const radians=x=>");
+ const end=GIS_PREVIEW_JS.indexOf(" const measure=()=>",start);
+ assert.ok(start>=0&&end>start,"Real browser projection functions must be testable");
+ // Evaluate the EXACT projection source shipped to the browser, not a copied formula.
+ const source="const TILE_SIZE=256,MAX_LAT=85.05112878;\n"+
+  GIS_PREVIEW_JS.slice(start,end)+"\n({llToWorld,worldToLL,world});";
+ const {llToWorld,worldToLL,world}=new Script(source).runInNewContext({});
+ const almost=(actual,expected)=>assert.ok(Math.abs(actual-expected)<1e-8,
+  "expected "+expected+" but got "+actual);
+ for(const [lat,lon,zoom] of [
+  [48.6,37.6,7],[49.99,36.23,10],[48.0,37.8,8],
+  [0,0,3],[-25.6,-122.5,6],[10,179.8,9],[10,-179.8,9]
+ ]){
+  const point=llToWorld(lat,lon,zoom),recovered=worldToLL(point.x,point.y,zoom);
+  almost(recovered.lat,lat);almost(recovered.lon,lon);
+ }
+ almost(worldToLL(0,world(7)/2,7).lon,-180);
+ almost(worldToLL(world(7)/2,world(7)/2,7).lon,0);
+ const center=llToWorld(48.6,37.6,7),width=1200,height=760;
+ const nw=worldToLL(center.x-width/2,center.y-height/2,7);
+ const se=worldToLL(center.x+width/2,center.y+height/2,7);
+ assert.ok(nw.lon<37.6&&se.lon>37.6,"Bounds must surround eastern Ukraine");
+ assert.ok(nw.lon>25&&se.lon<50,"Bounds must NOT shift across the Pacific");
+ assert.ok(nw.lat>48.6&&se.lat<48.6);
+ assert.ok(nw.lon<se.lon&&se.lat<nw.lat);
+ const drag=worldToLL(center.x-140,center.y+100,7);
+ assert.ok(Math.abs(drag.lon-37.6)<3,"Short drag must not jump 180 degrees");
+});
