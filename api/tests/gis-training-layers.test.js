@@ -56,7 +56,7 @@ test("browser renders 8 simultaneous markers, switches groups and filters by cat
  class Node {
   constructor(tag){this.tag=tag;this.children=[];this.parent=null;this.dataset={};
    this.style={};this.handlers={};this.hidden=false;this.checked=false;this.value='';
-   this.className='';this.classList={toggle:()=>{}};}
+   this.className='';this.classList={toggle:()=>{},add:()=>{},remove:()=>{}};}
   append(...children){for(const n of children){if(!(n instanceof Node))continue;
    this.children.push(n);n.parent=this;}}
   replaceChildren(...children){for(const child of this.children)child.parent=null;
