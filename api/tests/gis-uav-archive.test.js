@@ -212,8 +212,8 @@ test("diagnostic SQL is read-only, bounded, and does not access operational deta
  assert.match(ARCHIVE_RAW_SQL,/COUNT\(\*\) AS versions/);
  assert.match(ARCHIVE_RAW_SQL,/ANALISE-RAW-V1/);
  assert.doesNotMatch(ARCHIVE_RAW_SQL,/raw_cells|raw_json|coordinates|mgrs|station_name/i);
- assert.match(ARCHIVE_COLUMNS_SQL,/^SELECT name FROM pragma_table_info\\(\\?\\)$/);
- assert.match(ARCHIVE_MIGRATION_SQL,/^SELECT COUNT\\(\\*\\) AS applied FROM d1_migrations/);
+ assert.match(ARCHIVE_COLUMNS_SQL,/^SELECT name FROM pragma_table_info\(\?\)$/);
+ assert.match(ARCHIVE_MIGRATION_SQL,/^SELECT COUNT\(\*\) AS applied FROM d1_migrations/);
  for(const q of [ARCHIVE_SOURCE_SQL,ARCHIVE_RAW_SQL,ARCHIVE_COLUMNS_SQL,ARCHIVE_MIGRATION_SQL])
   assert.doesNotMatch(q,/\b(?:INSERT|UPDATE|DELETE|DROP|ALTER)\b/i);
 });
