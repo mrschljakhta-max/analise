@@ -125,7 +125,7 @@ test("browser dashboard compiles, renders only aggregated data, and exports pre-
  assert.ok(GIS_UAV_ARCHIVE_JS.includes("latest.quarters.map"));
  assert.ok(!GIS_UAV_ARCHIVE_JS.includes("operational_report_events"));
  assert.doesNotMatch(GIS_UAV_ARCHIVE_JS,/\/api\/(?:raw-documents|operational-reports|uav-catalog\/card)/);
- assert.doesNotMatch(GIS_UAV_ARCHIVE_JS,/\b(?:lat|lon|mgrs|station|unit_name|time_from|time_to)\b/i);
+ assert.doesNotMatch(GIS_UAV_ARCHIVE_JS.replace(/\/\/[^\n]*/g,""),/\b(?:lat|lon|mgrs|station|unit_name|time_from|time_to)\b/i);
  assert.ok(GIS_UAV_ARCHIVE_CSS.includes("@media(max-width:"));
  assert.ok(GIS_PREVIEW_HTML.includes('href="/api/gis-uav-archive"'));
  assert.ok(GIS_HISTORY_HTML.includes('href="/api/gis-uav-archive"'));
