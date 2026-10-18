@@ -1,0 +1,53 @@
+name: GIS Cloudflare environment provisioning
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Only isolated GIS dev or staging; production is forbidden"
+        required: true
+        type: choice
+        options: [dev, staging]
+      operation:
+        description: "plan=offline; verify=read-only; create=explicit confirmation"
+        required: true
+        type: choice
+        default: plan
+        options: [plan, verify, create]
+      confirm:
+        description: "For create only: CREATE_GIS_DEV or CREATE_GIS_STAGING"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gis-cloudflare-resource-provision
+  cancel-in-progress: false
+
+jobs:
+  resources:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate GIS resource isolation before cloud calls
+        run: |
+          node gis/scripts/check-isolation.mjs
+          node --test gis/tests/cloudflare-provision.test.mjs
+      - name: Plan, verify, or explicitly create GIS resources
+        env:
+          GIS_TARGET_ENV: ${{ inputs.environment }}
+          GIS_OPERATION: ${{ inputs.operation }}
+          GIS_CONFIRM: ${{ inputs.confirm }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_GIS_PROVISION_TOKEN: ${{ secrets.CLOUDFLARE_GIS_PROVISION_TOKEN }}
+        run: node gis/scripts/cloudflare-provision.mjs
+
+# No Workers deploy, D1 migrations, or production resource mutation.
