@@ -27,8 +27,8 @@ test("training layers are non-georeferenced, synthetic and never query military 
  assert.ok(GIS_TRAINING_LAYERS_JS.includes("НЕ позначки на карті"));
 });
 test("legend switches drive checkboxes, class filters and a schematic-only diagram",()=>{
- assert.ok(GIS_TRAINING_LAYERS_JS.includes("data.trainingGroup"));
- assert.ok(GIS_TRAINING_LAYERS_JS.includes("data.trainingFilter"));
+ assert.ok(GIS_TRAINING_LAYERS_JS.includes("dataset.trainingGroup"));
+ assert.ok(GIS_TRAINING_LAYERS_JS.includes("dataset.trainingFilter"));
  assert.ok(GIS_TRAINING_LAYERS_JS.includes("stationDiagram()"));
  assert.ok(GIS_TRAINING_LAYERS_JS.includes("createElementNS"));
  assert.ok(GIS_TRAINING_LAYERS_JS.includes("Схема, не сектор дії станції"));
