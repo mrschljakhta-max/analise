@@ -38,16 +38,19 @@ test("history is compiled from immutable RAW metadata and administrative audit, 
  const sql=[],bindings=[];
  const fixtures=[
   [
-   {day:"2026-10-16",versions:2,docx:1,xlsx:1,rows_saved:104,needs_review:5},
-   {day:"2026-10-17",versions:1,docx:1,xlsx:0,rows_saved:18,needs_review:1}
+   {day:"2026-10-16",versions:2,distinct_documents:2,docx:1,xlsx:1,rows_saved:104,needs_review:5},
+   {day:"2026-10-17",versions:1,distinct_documents:1,docx:1,xlsx:0,rows_saved:18,needs_review:1}
   ],
-  [{day:"2026-10-17",quality_created:3,quality_updated:2}],
+  [{day:"2026-10-17",quality_created:3,quality_updated:2,occurrence_created:2,occurrence_updated:1,rule_created:1,rule_updated:1}],
   [{day:"2026-10-16",directory_changes:1}],
   [{day:"2026-10-17",record_changes:4}]
  ];
  const DB={prepare(statement){
   const idx=sql.push(statement)-1;
-  return {bind(...args){bindings.push(args);return {async all(){return {results:fixtures[idx]}}}}};
+  return {bind(...args){bindings.push(args);return {
+   async all(){return {results:fixtures[idx]}},
+   async first(){assert.equal(idx,4);return {distinct_documents:2}}
+  }}};
  }};
  const response=await historicalAuditApi(new Request(url),{DB},actor);
  assert.equal(response.status,200);
@@ -57,14 +60,22 @@ test("history is compiled from immutable RAW metadata and administrative audit, 
  assert.equal(data.geo_data,false);
  assert.equal(data.totals.versions,3);
  assert.equal(data.totals.rows_saved,122);
+ assert.equal(data.totals.distinct_documents,2);
+ assert.equal(data.days[0].distinct_documents,2);
  assert.equal(data.totals.quality_created,3);
  assert.equal(data.totals.quality_updated,2);
+ assert.equal(data.totals.occurrence_created,2);
+ assert.equal(data.totals.occurrence_updated,1);
+ assert.equal(data.totals.rule_created,1);
+ assert.equal(data.totals.rule_updated,1);
+ assert.deepEqual(data.sources.map(x=>x.table),
+  ["report_versions","dq_audit","directory_entry_audit","record_audit"]);
  assert.equal(data.totals.directory_changes,1);
  assert.equal(data.totals.record_changes,4);
  assert.equal(data.days.length,2);
  assert.equal(data.days[0].day,"2026-10-16");
  for(const bind of bindings)assert.deepEqual(bind,["2026-09-01","2026-10-19"]);
- assert.equal(sql.length,4);
+ assert.equal(sql.length,5);
  for(const statement of sql){
   assert.match(statement,/SELECT/);
   assert.doesNotMatch(statement,/\b(?:INSERT|UPDATE|DELETE|DROP|ALTER)\b/i);
@@ -74,10 +85,13 @@ test("history is compiled from immutable RAW metadata and administrative audit, 
  assert.doesNotMatch(serialized,/source_name|raw_json|actor_id|directory_id|mgrs|lat|lon/i);
 });
 test("empty historical range returns zeros, never fabricated activity",async()=>{
- const DB={prepare(sql){return{bind(){return{async all(){return{results:[]}}}}}}};
+ const DB={prepare(sql){return{bind(){return{
+  async all(){return{results:[]}},
+  async first(){return {distinct_documents:0}}
+ }}}}};
  const r=await historicalAuditApi(new Request(url),{DB},actor);
  assert.equal(r.status,200);const x=await r.json();
- assert.equal(x.totals.versions,0);assert.deepEqual(x.days,[]);
+ assert.equal(x.totals.versions,0);assert.equal(x.totals.distinct_documents,0);assert.deepEqual(x.days,[]);
 });
 test("database failure is non-disclosing and returns error rather than a false zero",async()=>{
  const DB={prepare(){throw Error("raw SECRET internal SQL location")}};
@@ -86,7 +100,7 @@ test("database failure is non-disclosing and returns error rather than a false z
 });
 test("history UI is self-contained, compiles and correctly distinguishes upload time from event time",()=>{
  assert.doesNotThrow(()=>new Script(GIS_HISTORY_JS));
- for(const id of ["ha-from","ha-to","ha-load","ha-export","ha-cards","ha-chart","ha-table"])
+ for(const id of ["ha-from","ha-to","ha-load","ha-export","ha-cards","ha-chart-docs","ha-chart-rows","ha-chart-audit","ha-table"])
   assert.ok(GIS_HISTORY_HTML.includes('id="'+id+'"'),id);
  assert.ok(GIS_HISTORY_HTML.includes("не дату події"));
  assert.ok(GIS_HISTORY_JS.includes("/api/gis-history/data?"));
@@ -104,4 +118,38 @@ test("history routes remain behind existing Access gate",async()=>{
  const response=await worker.fetch(new Request("https://example.invalid/api/gis-history"),{});
  assert.equal(response.status,503);
  assert.ok(!(await response.text()).includes("Історія записів і дій"));
+});
+
+
+test("historical charts never combine uploads, row volumes and audit actions on a single axis",()=>{
+ assert.ok(GIS_HISTORY_JS.includes("chartInto('ha-chart-docs','versions','doc')"));
+ assert.ok(GIS_HISTORY_JS.includes("chartInto('ha-chart-rows','rows_saved','rows')"));
+ assert.ok(GIS_HISTORY_JS.includes("chartInto('ha-chart-audit',null,'audit')"));
+ assert.ok(GIS_HISTORY_JS.includes("const max=Math.max(1,...values.map(x=>x.value))"));
+ assert.ok(GIS_HISTORY_JS.includes("chartInto('ha-chart-audit'"));
+ assert.ok(GIS_HISTORY_HTML.includes("не означає"));
+ assert.ok(GIS_HISTORY_CSS.includes(".ha-chart-grid"));
+ assert.ok(GIS_HISTORY_HTML.includes("report_versions · dq_audit · directory_entry_audit · record_audit"));
+ assert.ok(GIS_HISTORY_JS.includes("occurrence_created"));
+ assert.ok(GIS_HISTORY_JS.includes("rule_created"));
+});
+test("source evidence separately tracks rules versus manual occurrence edits",async()=>{
+ const captured=[];
+ const DB={prepare(sql){
+  captured.push(sql);
+  const index=captured.length-1;
+  return{bind(){return{
+   async all(){return{results:index===1?[{day:"2026-10-18",quality_created:50,quality_updated:48,
+    occurrence_created:6,occurrence_updated:4,rule_created:44,rule_updated:44}]:[]}},
+   async first(){return {distinct_documents:0}}
+  }}};
+ }};
+ const result=await historicalAuditApi(new Request(url),{DB},actor);
+ const body=await result.json();
+ assert.equal(body.totals.quality_created,50);
+ assert.equal(body.totals.quality_updated,48);
+ assert.equal(body.totals.occurrence_created,6);
+ assert.equal(body.totals.occurrence_updated,4);
+ assert.equal(body.totals.rule_created,44);
+ assert.equal(body.totals.rule_updated,44);
 });
