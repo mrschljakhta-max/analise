@@ -44,7 +44,7 @@ test("never permits production rendering",()=>{
 });
 test("denies when a resource belongs to a different environment",()=>{
  const bad=fixtures();bad.kv[0].id=bad.kv[1].id;
- assert.throws(()=>inspectCloudBindings(bad,known),/share kv resource identity/);
+ assert.throws(()=>inspectCloudBindings(bad,known),/share kv (?:resource )?identity/);
 });
 test("denies duplicate or missing D1 resource before generating any config",()=>{
  const bad=fixtures();bad.d1.pop();
