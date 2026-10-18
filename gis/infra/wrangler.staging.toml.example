@@ -1,0 +1,21 @@
+# STAGING TEMPLATE ONLY — NO DEPLOY until real IDs, Access and approvals are verified.
+# Provision resources manually and record proof in docs/foundation/environment-inventory.md.
+name = "analise-gis-staging"
+main = "../apps/api/src/index.js"
+compatibility_date = "2026-10-18"
+workers_dev = false
+[vars]
+DEPLOY_ENV = "staging"
+[[d1_databases]]
+binding = "GIS_DB"
+database_name = "analise-gis-staging-db"
+database_id = "STAGING_D1_UUID_REQUIRED"
+[[r2_buckets]]
+binding = "GIS_R2"
+bucket_name = "analise-gis-staging-geodata"
+[[kv_namespaces]]
+binding = "GIS_KV"
+id = "STAGING_KV_ID_REQUIRED"
+[[queues.producers]]
+binding = "GIS_QUEUE"
+queue = "analise-gis-staging-jobs"

@@ -1,0 +1,7 @@
+# LOCAL PLACEHOLDER. No D1/R2/KV/Queue/Access bindings and not deployable to production.
+name = "analise-gis-local"
+main = "src/index.js"
+compatibility_date = "2026-10-18"
+workers_dev = false
+[vars]
+DEPLOY_ENV = "local"

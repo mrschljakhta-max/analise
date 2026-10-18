@@ -240,7 +240,10 @@ async function usersApi(req, env, user) {
   return error(405,"Непідтримувана дія");
 }
 
-async function filesApi(req, env, user, seg) {
+export async function filesApi(req, env, user, seg) {
+  // Until resource-scoped ACL exists, deny all file listings, uploads and downloads
+  // to nonadmins. A valid Access token alone never grants object-level access.
+  if (!user || user.active !== 1 || user.role !== "admin") return error(403, "Недостатньо прав доступу до файлів");
   if (!env.DOCUMENTS) return error(503, "Приватне сховище не підключене");
   if (seg.length === 2 && req.method === "GET") {
     const result=await env.DB.prepare("SELECT id,original_name,mime_type,byte_size,sha256,uploaded_at FROM source_files ORDER BY uploaded_at DESC LIMIT 100").all();
