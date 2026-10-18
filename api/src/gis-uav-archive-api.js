@@ -66,25 +66,66 @@ export const ARCHIVE_SQL="WITH filtered AS ("+
  "FROM quartered GROUP BY quarter,category ORDER BY quarter,category";
 // Separate the working RAW archive from a possibly absent structured-event schema.
 export const ARCHIVE_SOURCE_SQL="SELECT name FROM sqlite_master WHERE type='table' "+
- "AND name IN ('operational_report_events','operational_report_sessions','report_versions')";
+ "AND name IN ('operational_report_events','operational_report_sessions','report_versions','d1_migrations')";
 export const ARCHIVE_RAW_SQL="SELECT COUNT(*) AS versions, "+
  "COALESCE(SUM(CAST(json_extract(snapshot_json,'$.record_count') AS INTEGER)),0) AS rows_saved "+
  "FROM report_versions WHERE report_name GLOB 'ANALISE-RAW-V1:*' "+
  "AND substr(created_at,1,4)=?";
+// Table-valued SQLite PRAGMA is queried via SELECT, with a bound table name.
+// Only approved column names are inspected; no data rows or raw documents are read.
+export const ARCHIVE_COLUMNS_SQL="SELECT name FROM pragma_table_info(?)";
+export const ARCHIVE_MIGRATION_SQL="SELECT COUNT(*) AS applied FROM d1_migrations WHERE name=?";
+const REQUIRED_COLUMNS={
+ operational_report_events:["session_id","source_type","event_datetime","uav_type"],
+ operational_report_sessions:["id","status"],
+ report_versions:["report_name","snapshot_json","created_at"]
+};
+async function missingColumns(db,table){
+ const result=await db.prepare(ARCHIVE_COLUMNS_SQL).bind(table).all();
+ const names=new Set((result.results||[]).map(row=>row.name));
+ return REQUIRED_COLUMNS[table].filter(name=>!names.has(name));
+}
 async function archiveSources(db,year){
  const snapshot=await db.prepare(ARCHIVE_SOURCE_SQL).all();
  const existing=new Set((snapshot.results||[]).map(row=>row.name));
+ const missingTables=["operational_report_events","operational_report_sessions"]
+  .filter(table=>!existing.has(table));
+ const structuredPresent=missingTables.length===0;
+ const missing=[];
+ let columnCheckFailed=false;
+ for(const table of ["operational_report_events","operational_report_sessions"]){
+  if(!existing.has(table))continue;
+  try{for(const column of await missingColumns(db,table))missing.push(table+"."+column)}
+  catch{columnCheckFailed=true}
+ }
  let raw={status:existing.has("report_versions")?"unreadable":"missing",upload_year:year};
  if(existing.has("report_versions")){
   try{
-   const row=await db.prepare(ARCHIVE_RAW_SQL).bind(String(year)).first();
-   raw={status:"available",upload_year:year,
-    versions:Math.max(0,Number(row?.versions)||0),
-    rows_saved:Math.max(0,Number(row?.rows_saved)||0)};
+   const rawMissing=await missingColumns(db,"report_versions");
+   if(rawMissing.length)raw={status:"schema_incompatible",upload_year:year};
+   else{
+    const row=await db.prepare(ARCHIVE_RAW_SQL).bind(String(year)).first();
+    raw={status:"available",upload_year:year,
+     versions:Math.max(0,Number(row?.versions)||0),
+     rows_saved:Math.max(0,Number(row?.rows_saved)||0)};
+   }
   }catch{raw={status:"unreadable",upload_year:year}}
  }
- return {structured_tables:existing.has("operational_report_events")&&
-  existing.has("operational_report_sessions")?"present":"missing",raw};
+ let ledger="absent";
+ if(existing.has("d1_migrations")){
+  try{
+   const row=await db.prepare(ARCHIVE_MIGRATION_SQL).bind("0018_operational_reports.sql").first();
+   ledger=Number(row?.applied)>0?"registered":"not_registered";
+  }catch{ledger="unreadable"}
+ }
+ const structuredState=!structuredPresent?"missing":columnCheckFailed?"unverified":
+  missing.length?"incompatible":"present";
+ const ledgerDiscrepancy=ledger==="registered"&&
+  (structuredState==="missing"||structuredState==="incompatible") ||
+  ledger==="not_registered"&&structuredState==="present";
+ return {structured_tables:structuredState,raw,
+  schema_diagnostics:{missing_tables:missingTables,missing_columns:missing,
+   ledger_0018:ledger,ledger_discrepancy:ledgerDiscrepancy}};
 }
 function blankQuarters(period){
  return Array.from({length:period.eligibleQuarters},(_,index)=>({
@@ -101,8 +142,12 @@ function diagnosticsResponse(period,sources,sourceStatus,status=200){
   privacy:{no_coordinates:true,no_regions:true,no_units:true,no_station_data:true,
    no_event_records:true,no_precise_times:true},
   read_only:true,source_status:sourceStatus,raw_archive:sources.raw,
+  schema_diagnostics:sources.schema_diagnostics,
   state:"source_unavailable",quarters:blankQuarters(period),
-  error:status===503?"Не вдалося виконати структурований запит D1":undefined
+  error:status===503?sourceStatus==="schema_incompatible"?
+   "Схема структурованих таблиць не відповідає API":
+   sourceStatus==="schema_check_failed"?"Не вдалося перевірити колонки D1":
+   "Не вдалося виконати структурований запит D1":undefined
  },status);
 }
 export async function archivedUavSummary(req,env,user,now=Date.now()){
@@ -118,6 +163,10 @@ export async function archivedUavSummary(req,env,user,now=Date.now()){
  catch{return send({error:"Не вдалося перевірити структуру D1",source_status:"database_unavailable"},503)}
  if(sources.structured_tables==="missing")
   return diagnosticsResponse(period,sources,"schema_missing");
+ if(sources.structured_tables==="incompatible")
+  return diagnosticsResponse(period,sources,"schema_incompatible",503);
+ if(sources.structured_tables==="unverified")
+  return diagnosticsResponse(period,sources,"schema_check_failed",503);
  let result;
  try{result=await env.DB.prepare(ARCHIVE_SQL).bind(period.from,period.exclusiveTo).all()}
  catch{
@@ -148,6 +197,7 @@ export async function archivedUavSummary(req,env,user,now=Date.now()){
   privacy:{no_coordinates:true,no_regions:true,no_units:true,no_station_data:true,
    no_event_records:true,no_precise_times:true},
   read_only:true,source_status:"structured_available",raw_archive:sources.raw,
+  schema_diagnostics:sources.schema_diagnostics,
   state:quarters.some(q=>q.categories.some(c=>c.count!==null))?
    "aggregates_available":"no_public_aggregate",quarters});
 }
