@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {Script} from "node:vm";
 import {readFileSync} from "node:fs";
-import {uavArchiveCutoff,parseUavArchiveRange,ARCHIVE_SQL,archivedUavSummary} from "../src/gis-uav-archive-api.js";
+import {uavArchiveCutoff,parseUavArchiveRange,ARCHIVE_SQL,ARCHIVE_SOURCE_SQL,ARCHIVE_RAW_SQL,archivedUavSummary} from "../src/gis-uav-archive-api.js";
 import {GIS_UAV_ARCHIVE_HTML,GIS_UAV_ARCHIVE_CSS,GIS_UAV_ARCHIVE_JS} from "../src/gis-uav-archive-assets.js";
 import {GIS_PREVIEW_HTML} from "../src/gis-preview-assets.js";
 import {GIS_HISTORY_HTML} from "../src/gis-history-assets.js";
@@ -11,6 +11,18 @@ import worker from "../src/index.js";
 const actor={role:"admin",active:1,id:"test-admin"};
 const now=Date.UTC(2026,9,18);
 const url="https://example.invalid/api/gis-uav-archive/data?year=2026";
+function withSourceProbe(handler,options={}){
+ const names=options.names??["operational_report_events","operational_report_sessions","report_versions"];
+ const raw=options.raw??{versions:17,rows_saved:1168};
+ return {DB:{prepare(sql){
+  if(sql===ARCHIVE_SOURCE_SQL)return {all:async()=>({results:names.map(name=>({name}))})};
+  if(sql===ARCHIVE_RAW_SQL)return {bind(year){
+   assert.match(String(year),/^[0-9]{4}$/);
+   return {first:async()=>raw};
+  }};
+  return handler(sql);
+ }}};
+}
 const exampleRows=[
  {quarter:1,category:"fpv",n:35},
  {quarter:1,category:"wing",n:19},
@@ -77,9 +89,11 @@ test("SQL selects only class/category and quarterly counts from committed PBD re
 });
 test("only threshold-cleared quarterly cells are exposed, small groups are not counted",async()=>{
  let sql="",params=[];
- const env={DB:{prepare(query){sql=query;return{bind(...args){params=args;return{async all(){
-  return {results:exampleRows};
- }}}}}}};
+ const env=withSourceProbe(query=>{
+  sql=query;return{bind(...args){params=args;return{async all(){
+   return {results:exampleRows};
+  }}}};
+ });
  const res=await archivedUavSummary(new Request(url),env,actor,now);
  assert.equal(res.status,200);
  const data=await res.json();
@@ -98,9 +112,9 @@ test("only threshold-cleared quarterly cells are exposed, small groups are not c
  assert.equal(data.privacy.no_event_records,true);
 });
 test("small and empty groups yield no published aggregates, never fabricated values",async()=>{
- const env={DB:{prepare(){return {bind(){return{async all(){
+ const env=withSourceProbe(()=>({bind(){return{async all(){
   return {results:[{quarter:1,category:"fpv",n:19},{quarter:3,category:"fpv",n:100}]};
- }}}}}}};
+ }}}}));
  const res=await archivedUavSummary(new Request(url),env,actor,now);
  const data=await res.json();
  assert.equal(data.state,"no_public_aggregate");
@@ -108,12 +122,14 @@ test("small and empty groups yield no published aggregates, never fabricated val
  assert.ok(data.quarters.every(q=>q.categories.every(x=>x.count===null)));
 });
 test("D1 error returns 503 instead of hiding query failure as no activity",async()=>{
- const env={DB:{prepare(){throw Error("secret query or table details")}}};
+ const env=withSourceProbe(()=>{throw Error("secret query or table details")});
  const res=await archivedUavSummary(new Request(url),env,actor,now);
  assert.equal(res.status,503);
  const body=await res.text();
  assert.doesNotMatch(body,/secret query|table details/);
- assert.match(body,/джерел|міграц/);
+ assert.match(body,/Не вдалося виконати структурований запит D1/);
+ assert.equal(JSON.parse(body).source_status,"structured_query_failed");
+ assert.equal(JSON.parse(body).raw_archive.versions,17);
 });
 test("browser dashboard compiles, renders only aggregated data, and exports pre-filtered CSV",()=>{
  assert.doesNotThrow(()=>new Script(GIS_UAV_ARCHIVE_JS));
@@ -121,6 +137,9 @@ test("browser dashboard compiles, renders only aggregated data, and exports pre-
   assert.ok(GIS_UAV_ARCHIVE_HTML.includes('id="'+field+'"'),field);
  assert.ok(GIS_UAV_ARCHIVE_JS.includes("/api/gis-uav-archive/data?year="));
  assert.ok(GIS_UAV_ARCHIVE_JS.includes("new Blob"));
+ assert.ok(GIS_UAV_ARCHIVE_HTML.includes('id="ua-raw-source"'));
+ assert.ok(GIS_UAV_ARCHIVE_JS.includes("source_status==='schema_missing'"));
+ assert.ok(GIS_UAV_ARCHIVE_JS.includes("RAW у D1 за роком завантаження"));
  assert.ok(GIS_UAV_ARCHIVE_JS.includes("text/csv;charset=utf-8"));
  assert.ok(GIS_UAV_ARCHIVE_JS.includes("latest.quarters.map"));
  assert.ok(!GIS_UAV_ARCHIVE_JS.includes("operational_report_events"));
@@ -139,4 +158,44 @@ test("archive page uses established Access and admin restrictions",async()=>{
  const res=await worker.fetch(new Request("https://example.invalid/api/gis-uav-archive"),{});
  assert.equal(res.status,503);
  assert.ok(!(await res.text()).includes("Історичні записи БпЛА"));
+});
+
+test("missing structured schema returns legitimate RAW archive metadata rather than generic failure",async()=>{
+ const env=withSourceProbe(()=>{throw Error("must not query missing schema")},{
+  names:["report_versions"],raw:{versions:17,rows_saved:1168}
+ });
+ const response=await archivedUavSummary(new Request(url),env,actor,now);
+ assert.equal(response.status,200);
+ const data=await response.json();
+ assert.equal(data.source_status,"schema_missing");
+ assert.equal(data.state,"source_unavailable");
+ assert.equal(data.raw_archive.status,"available");
+ assert.equal(data.raw_archive.versions,17);
+ assert.equal(data.raw_archive.rows_saved,1168);
+ assert.equal(data.period.year,2026);
+ assert.ok(data.quarters.every(q=>q.categories.every(c=>c.count===null)));
+});
+test("both RAW and structured tables absent produce a clear missing-schema status",async()=>{
+ const env=withSourceProbe(()=>{throw Error("must not query")},{names:[]});
+ const response=await archivedUavSummary(new Request(url),env,actor,now);
+ assert.equal(response.status,200);
+ const data=await response.json();
+ assert.equal(data.source_status,"schema_missing");
+ assert.equal(data.raw_archive.status,"missing");
+});
+test("database catalog lookup failure is not mislabeled as migration mismatch",async()=>{
+ const env={DB:{prepare(){throw Error("catalog not accessible")}}};
+ const response=await archivedUavSummary(new Request(url),env,actor,now);
+ assert.equal(response.status,503);
+ const data=await response.json();
+ assert.equal(data.source_status,"database_unavailable");
+ assert.doesNotMatch(JSON.stringify(data),/catalog not accessible/);
+});
+test("diagnostic SQL is read-only, bounded, and does not access operational detail fields",()=>{
+ assert.match(ARCHIVE_SOURCE_SQL,/sqlite_master/);
+ assert.match(ARCHIVE_RAW_SQL,/COUNT\(\*\) AS versions/);
+ assert.match(ARCHIVE_RAW_SQL,/ANALISE-RAW-V1/);
+ assert.doesNotMatch(ARCHIVE_RAW_SQL,/raw_cells|raw_json|coordinates|mgrs|station_name/i);
+ for(const q of [ARCHIVE_SOURCE_SQL,ARCHIVE_RAW_SQL])
+  assert.doesNotMatch(q,/\b(?:INSERT|UPDATE|DELETE|DROP|ALTER)\b/i);
 });
