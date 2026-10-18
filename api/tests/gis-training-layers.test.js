@@ -125,3 +125,21 @@ test("browser renders 8 simultaneous markers, switches groups and filters by cat
  uav.checked=true;block.handlers.change({target:uav});
  assert.equal(mark().length,3);assert.equal(panel.hidden,false);
 });
+
+test("training symbols are directly on the map, not hidden in a boxed mini-schematic",()=>{
+ // The transparent, full-viewport overlay no longer blocks OSM pan/zoom.
+ assert.ok(GIS_TRAINING_LAYERS_CSS.includes("position:absolute;inset:0;width:auto;z-index:14"));
+ assert.ok(GIS_TRAINING_LAYERS_CSS.includes("background:transparent"));
+ assert.ok(GIS_TRAINING_LAYERS_CSS.includes("pointer-events:none;overflow:visible"));
+ assert.ok(GIS_TRAINING_LAYERS_CSS.includes("pointer-events:auto;width:auto"));
+ assert.ok(GIS_TRAINING_LAYERS_CSS.includes("content:'DEMO'"));
+ assert.ok(GIS_TRAINING_LAYERS_JS.includes("map.append(overlay)"));
+ assert.ok(GIS_TRAINING_LAYERS_JS.includes("marker.addEventListener('pointerdown',event=>event.stopPropagation())"));
+ assert.ok(!GIS_TRAINING_LAYERS_JS.includes("overlay.addEventListener('pointerdown'"));
+ assert.ok(!GIS_TRAINING_LAYERS_JS.includes("overlay.addEventListener('wheel'"));
+ // Plotting coordinates are viewport percentages and never flow through map projection.
+ assert.match(GIS_TRAINING_LAYERS_JS,/style.left=example.x\+'%'/);
+ assert.match(GIS_TRAINING_LAYERS_JS,/style.top=example.y\+'%'/);
+ assert.doesNotMatch(GIS_TRAINING_LAYERS_JS,/bridge\.(?:project|getBounds|getView|centerOn)/);
+ assert.ok(GIS_TRAINING_LAYERS_JS.includes("УМОВНІ СИМВОЛИ · БЕЗ ГЕОПРИВ’ЯЗКИ"));
+});
