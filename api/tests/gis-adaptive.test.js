@@ -88,3 +88,8 @@ test("wide mode ribbon is removed and original map gets the reclaimed space",()=
  assert.ok(GIS_ADAPTIVE_JS.includes("gisp-map-actions"));
  assert.ok(GIS_ADAPTIVE_JS.includes('data-map-tool="export"'));
 });
+
+test("live public D1 overlay cannot retain unrelated synthetic routes when demo pins are off",()=>{
+ assert.ok(GIS_ADAPTIVE_JS.includes("if(!saved.points.checked||(!state.route&&!state.polygon))return"));
+ assert.ok(GIS_ADAPTIVE_JS.includes("saved.points.addEventListener('change',()=>{refreshStats();renderGeometry()})"));
+});
