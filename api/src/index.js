@@ -23,6 +23,9 @@ import {syntheticVersionsApi} from "./synthetic-report-versions.js";
 import {PURGATORY_HTML,PURGATORY_CSS} from "./purgatory-assets.js";
 import {PURGATORY_JS} from "./purgatory-client.js";
 import {purgatoryApi} from "./purgatory-api.js";
+import {rawReviewApi} from "./raw-review-api.js";
+import {SAVED_DOCUMENTS_HTML,SAVED_DOCUMENTS_CSS} from "./saved-documents-assets.js";
+import {SAVED_DOCUMENTS_JS} from "./saved-documents-client.js";
 import { CONTACT_HTML,CONTACT_CSS } from "./contact-assets.js";
 import { CONTACT_JS } from "./contact-client.js";
 import { CONTACT_IMPORT_JS } from "./contact-import-client.js";
@@ -370,6 +373,13 @@ export default {
         if(url.pathname==="/api/synthetic-upload.css")return appAsset(SYNTHETIC_UPLOAD_CSS,"text/css; charset=utf-8");
         return appAsset(SYNTHETIC_UPLOAD_JS,"text/javascript; charset=utf-8");
       }
+      if(["/api/saved-documents","/api/saved-documents.css","/api/saved-documents.js"].includes(url.pathname)){
+        if(req.method!=="GET")return error(405,"Дозволено лише GET");
+        if(user.role!=="admin")return error(403,"Лише адміністратор");
+        if(url.pathname==="/api/saved-documents")return appAsset(SAVED_DOCUMENTS_HTML,"text/html; charset=utf-8");
+        if(url.pathname==="/api/saved-documents.css")return appAsset(SAVED_DOCUMENTS_CSS,"text/css; charset=utf-8");
+        return appAsset(SAVED_DOCUMENTS_JS,"text/javascript; charset=utf-8");
+      }
       if (["/api/purgatory","/api/purgatory.css","/api/purgatory.js"].includes(url.pathname)) {
         if(req.method!=="GET")return error(405,"Дозволено лише GET");
         if(user.role!=="admin")return error(403,"Лише адміністратор");
@@ -494,6 +504,7 @@ export default {
       if(seg[1]==="synthetic-upload"&&seg[2]==="versions")return await syntheticVersionsApi(req,env,user,seg);
       if(url.pathname==="/api/synthetic-upload/inspect")return await syntheticUploadApi(req,env,user);
       if(url.pathname==="/api/synthetic-upload/ingest")return await syntheticUploadApi(req,env,user);
+      if(seg[1]==="raw-review")return await rawReviewApi(req,env,user,seg);
       if(seg[1]==="raw-documents")return await rawDocumentsApi(req,env,user,seg);
       if(seg[1]==="demo-local-store")return await demoLocalStoreApi(req,env,user,seg);
       if(seg[1]==="purgatory")return await purgatoryApi(req,env,user,seg);
