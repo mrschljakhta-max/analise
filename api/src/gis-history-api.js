@@ -35,6 +35,7 @@ export async function historicalAuditApi(req,env,user){
   // RAW record_count is summed per *saved version*, not unique real-world events.
   const statements=[
    "SELECT substr(created_at,1,10) AS day, COUNT(*) AS versions, "+
+   "COUNT(DISTINCT report_name) AS distinct_documents, "+
    "SUM(CASE WHEN json_extract(snapshot_json,'$.kind')='docx' THEN 1 ELSE 0 END) AS docx, "+
    "SUM(CASE WHEN json_extract(snapshot_json,'$.kind')='xlsx' THEN 1 ELSE 0 END) AS xlsx, "+
    "SUM(COALESCE(CAST(json_extract(snapshot_json,'$.record_count') AS INTEGER),0)) AS rows_saved, "+
@@ -44,36 +45,56 @@ export async function historicalAuditApi(req,env,user){
    "AND created_at>=? AND created_at<? GROUP BY substr(created_at,1,10) ORDER BY day",
    "SELECT substr(at,1,10) AS day, "+
    "SUM(CASE WHEN action='created' THEN 1 ELSE 0 END) AS quality_created, "+
-   "SUM(CASE WHEN action='updated' THEN 1 ELSE 0 END) AS quality_updated "+
+   "SUM(CASE WHEN action='updated' THEN 1 ELSE 0 END) AS quality_updated, "+
+   "SUM(CASE WHEN entity_type='occurrence' AND action='created' THEN 1 ELSE 0 END) AS occurrence_created, "+
+   "SUM(CASE WHEN entity_type='occurrence' AND action='updated' THEN 1 ELSE 0 END) AS occurrence_updated, "+
+   "SUM(CASE WHEN entity_type='rule' AND action='created' THEN 1 ELSE 0 END) AS rule_created, "+
+   "SUM(CASE WHEN entity_type='rule' AND action='updated' THEN 1 ELSE 0 END) AS rule_updated "+
    "FROM dq_audit WHERE at>=? AND at<? GROUP BY substr(at,1,10) ORDER BY day",
    "SELECT substr(at,1,10) AS day, COUNT(*) AS directory_changes "+
    "FROM directory_entry_audit WHERE at>=? AND at<? "+
    "GROUP BY substr(at,1,10) ORDER BY day",
    "SELECT substr(at,1,10) AS day, COUNT(*) AS record_changes "+
    "FROM record_audit WHERE at>=? AND at<? "+
-   "GROUP BY substr(at,1,10) ORDER BY day"
+   "GROUP BY substr(at,1,10) ORDER BY day",
+   "SELECT COUNT(DISTINCT report_name) AS distinct_documents "+
+   "FROM report_versions WHERE report_name GLOB 'ANALISE-RAW-V1:*' "+
+   "AND created_at>=? AND created_at<?"
   ];
-  const result=await Promise.all(statements.map(sql=>env.DB.prepare(sql).bind(from,exclusiveTo).all()));
+  const result=await Promise.all(statements.slice(0,4).map(sql=>env.DB.prepare(sql).bind(from,exclusiveTo).all()));
+  const uniqueRow=await env.DB.prepare(statements[4]).bind(from,exclusiveTo).first();
   const byDay=new Map();
   for(let i=0;i<result.length;i++){
    for(const row of result[i].results||[]){
     if(!/^\d{4}-\d{2}-\d{2}$/.test(row.day||"")||row.day<from||row.day>to)continue;
     const current=byDay.get(row.day)||{
-     day:row.day,versions:0,docx:0,xlsx:0,rows_saved:0,needs_review:0,
-     quality_created:0,quality_updated:0,directory_changes:0,record_changes:0};
-    const keys=i===0?["versions","docx","xlsx","rows_saved","needs_review"]:
-     i===1?["quality_created","quality_updated"]:i===2?["directory_changes"]:["record_changes"];
+     day:row.day,versions:0,distinct_documents:0,docx:0,xlsx:0,rows_saved:0,needs_review:0,
+     quality_created:0,quality_updated:0,occurrence_created:0,occurrence_updated:0,
+     rule_created:0,rule_updated:0,directory_changes:0,record_changes:0};
+    const keys=i===0?["versions","distinct_documents","docx","xlsx","rows_saved","needs_review"]:
+     i===1?["quality_created","quality_updated","occurrence_created","occurrence_updated",
+       "rule_created","rule_updated"]:i===2?["directory_changes"]:["record_changes"];
     for(const key of keys)current[key]=numbers(row[key]);
     byDay.set(row.day,current);
    }
   }
   const days=[...byDay.values()].sort((a,b)=>a.day.localeCompare(b.day));
-  const totals={versions:0,docx:0,xlsx:0,rows_saved:0,needs_review:0,
-   quality_created:0,quality_updated:0,directory_changes:0,record_changes:0};
-  for(const day of days)for(const k of Object.keys(totals))totals[k]+=day[k];
+  const totals={versions:0,distinct_documents:0,docx:0,xlsx:0,rows_saved:0,needs_review:0,
+   quality_created:0,quality_updated:0,occurrence_created:0,occurrence_updated:0,
+   rule_created:0,rule_updated:0,directory_changes:0,record_changes:0};
+  for(const day of days)for(const k of Object.keys(totals))if(k!=="distinct_documents")totals[k]+=day[k];
+  // Daily distinct document counts cannot be summed: the same document can be saved on multiple days.
+  totals.distinct_documents=numbers(uniqueRow?.distinct_documents);
   return reply({schema:"ANALISE_HISTORICAL_METADATA_V1",from,to,
    date_semantics:"document_saved_at_and_audit_action_at_NOT_original_event_date",
-   read_only:true,geo_data:false,totals,days});
+   read_only:true,geo_data:false,
+   metric_scope:"RAW saved revisions + separate D1 administrative audits",
+   sources:[
+    {table:"report_versions",metric:"raw_versions",time_column:"created_at"},
+    {table:"dq_audit",metric:"quality_audit_entries",time_column:"at"},
+    {table:"directory_entry_audit",metric:"directory_audit_entries",time_column:"at"},
+    {table:"record_audit",metric:"record_audit_entries",time_column:"at"}
+   ],totals,days});
  }catch{
   return reply({error:"Історію метаданих наразі не вдалося прочитати"},503);
  }
