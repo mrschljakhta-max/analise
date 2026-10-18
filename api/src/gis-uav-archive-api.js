@@ -119,7 +119,8 @@ async function archiveSources(db,year){
  }
  const structuredState=!structuredPresent?"missing":columnCheckFailed?"unverified":
   missing.length?"incompatible":"present";
- const ledgerDiscrepancy=ledger==="registered"&&structuredState!=="present" ||
+ const ledgerDiscrepancy=ledger==="registered"&&
+  (structuredState==="missing"||structuredState==="incompatible") ||
   ledger==="not_registered"&&structuredState==="present";
  return {structured_tables:structuredState,raw,
   schema_diagnostics:{missing_columns:missing,ledger_0018:ledger,
