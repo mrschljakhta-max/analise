@@ -75,7 +75,11 @@ test("client renders D1 civilian regional overview, zooms to real civil pins and
    this.style={};this.hidden=false;this.disabled=false;this.value='';
    this.textContent='';this.className='';this.attrs={};}
   append(...values){for(const x of values){this.children.push(x);
-   if(x&&typeof x==="object")x.parent=this;}}
+   if(x&&typeof x==="object")x.parent=this;
+   // Browser selects automatically choose their first appended option.
+   if(this.tag==="select"&&this.children.length===1&&x?.tag==="option")
+    this.value=x.value;
+  }}
   replaceChildren(...values){this.children=[];this.append(...values)}
   after(item){if(!this.parent)throw Error("No parent");
    const siblings=this.parent.children,i=siblings.indexOf(this);
