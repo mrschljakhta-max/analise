@@ -27,11 +27,15 @@ test("civil grid API enforces admin auth, GET-only, bounded cell degrees",async(
 });
 test("coarse civilian cells are counted in D1 from public gazetteer only",async()=>{
  let sql="",args=[];
- const env={DB:{prepare(query){sql=query;return{bind(...p){
-  args=p;return{all:async()=>({results:[
-   {y:138,x:217,n:156},{y:139,x:217,n:32}
-  ]})}};
- }}}};
+ const env={DB:{prepare(query){
+  sql=query;
+  return {bind(...p){
+   args=p;
+   return {all:async()=>({results:[
+    {y:138,x:217,n:156},{y:139,x:217,n:32}
+   ]})};
+  }};
+ }}};
  const response=await gisCivilGridApi(new Request(url+"?cell=1"),env,admin);
  assert.equal(response.status,200);
  const result=await response.json();
