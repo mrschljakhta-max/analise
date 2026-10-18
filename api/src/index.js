@@ -34,6 +34,8 @@ import { DASHBOARD_HTML,DASHBOARD_CSS,DASHBOARD_JS } from "./dashboard-assets.js
 import { GLOBAL_NAV_CSS,GLOBAL_NAV_JS } from "./global-navigation-assets.js";
 import {GIS_PREVIEW_HTML,GIS_PREVIEW_CSS} from "./gis-preview-assets.js";
 import {GIS_PREVIEW_JS} from "./gis-preview-client.js";
+import {GIS_ADAPTIVE_JS} from "./gis-adaptive-client.js";
+import {GIS_ADAPTIVE_CSS} from "./gis-adaptive-assets.js";
 import { dashboardApi } from "./dashboard-api.js";
 import { VP_SP_HTML, VP_SP_CSS } from "./vp-sp-assets.js";
 import { VP_SP_JS } from "./vp-sp-client.js";
@@ -349,12 +351,14 @@ export default {
       if(auth.err)return auth.err;
       const user=auth.user;
       // Private admin-only FIRST LOOK of a synthetic OSM map. No GIS DB access.
-      if (["/api/gis-preview","/api/gis-preview.css","/api/gis-preview.js"].includes(url.pathname)) {
+      if (["/api/gis-preview","/api/gis-preview.css","/api/gis-preview.js","/api/gis-adaptive.css","/api/gis-adaptive.js"].includes(url.pathname)) {
         if(req.method!=="GET")return error(405,"Лише перегляд GET");
         if(user.role!=="admin"||user.active!==1)return error(403,"Лише адміністратор");
         const opts={csp:GIS_PREVIEW_CSP,referrerPolicy:"strict-origin-when-cross-origin"};
         if(url.pathname==="/api/gis-preview")return appAsset(GIS_PREVIEW_HTML,"text/html; charset=utf-8",opts);
         if(url.pathname==="/api/gis-preview.css")return appAsset(GIS_PREVIEW_CSS,"text/css; charset=utf-8",opts);
+        if(url.pathname==="/api/gis-adaptive.css")return appAsset(GIS_ADAPTIVE_CSS,"text/css; charset=utf-8",opts);
+        if(url.pathname==="/api/gis-adaptive.js")return appAsset(GIS_ADAPTIVE_JS,"text/javascript; charset=utf-8",opts);
         return appAsset(GIS_PREVIEW_JS,"text/javascript; charset=utf-8",opts);
       }
       // Private working interface: HTML, CSS and JS are all Access-protected.
