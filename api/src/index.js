@@ -38,6 +38,7 @@ import {GIS_ADAPTIVE_JS} from "./gis-adaptive-client.js";
 import {GIS_ADAPTIVE_CSS} from "./gis-adaptive-assets.js";
 import {GIS_PUBLIC_SETTLEMENTS_JS,GIS_PUBLIC_SETTLEMENTS_CSS} from "./gis-public-settlements-assets.js";
 import {GIS_TRAINING_LAYERS_JS,GIS_TRAINING_LAYERS_CSS} from "./gis-training-layers-assets.js";
+import {gisReferenceSummaryApi} from "./gis-reference-summary-api.js";
 import {GIS_HISTORY_HTML,GIS_HISTORY_CSS,GIS_HISTORY_JS} from "./gis-history-assets.js";
 import {historicalAuditApi} from "./gis-history-api.js";
 import {archivedUavSummary} from "./gis-uav-archive-api.js";
@@ -375,9 +376,10 @@ export default {
         if(url.pathname==="/api/gis-history.css")return appAsset(GIS_HISTORY_CSS,"text/css; charset=utf-8");
         return appAsset(GIS_HISTORY_JS,"text/javascript; charset=utf-8");
       }
-      // Public gazetteer ONLY: bounded read from the existing settlements directory.
-      // No other ANALISE operational directory is queried or exposed by GIS.
+      // Map data: geographically plot public settlements only.
       if(url.pathname==="/api/gis/settlements")return gisPublicSettlementsApi(req,env,user);
+      // Distinct admin-only D1 reference counts; no geographic military layer.
+      if(url.pathname==="/api/gis/reference-summary")return gisReferenceSummaryApi(req,env,user);
       // Access-protected map assets; separate public settlement overlay stays opt-in.
       if (["/api/gis-preview","/api/gis-preview.css","/api/gis-preview.js","/api/gis-adaptive.css","/api/gis-adaptive.js","/api/gis-settlements.js","/api/gis-settlements.css","/api/gis-training-layers.js","/api/gis-training-layers.css"].includes(url.pathname)) {
         if(req.method!=="GET")return error(405,"Лише перегляд GET");
