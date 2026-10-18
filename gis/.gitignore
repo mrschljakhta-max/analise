@@ -1,0 +1,9 @@
+# Never version-control actual D1/KV binding identifiers compiled from Cloudflare inventory.
+/infra/wrangler.dev.toml
+/infra/wrangler.staging.toml
+/infra/wrangler.production.toml
+# Never commit runtime credentials or generated credentials.
+/.dev.vars*
+/.wrangler/
+/node_modules/
+/dist/
