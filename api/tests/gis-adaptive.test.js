@@ -26,7 +26,7 @@ test("all six reference modes and contextual scenarios are live controls",()=>{
 test("dock panels and central map are responsive and togglable",()=>{
  for(const key of ["gisp-hide-left","gisp-hide-right","gisp-compact","gisp-map-actions"])
   assert.ok(GIS_ADAPTIVE_CSS.includes(key),key);
- for(const key of ["gisp-layout-toggle","data-map-tool=\"inspector\"",
+ for(const key of ["gisp-mode-select","data-map-tool=\"inspector\"",
   "data-map-tool=\"fullscreen\"","data-map-tool=\"layers\""])
   assert.ok(GIS_ADAPTIVE_JS.includes(key),key);
  assert.ok(GIS_ADAPTIVE_CSS.includes("grid-template-columns:1fr"));
@@ -78,4 +78,13 @@ test("exporting and layout adjustments are entirely browser-local",()=>{
  assert.match(GIS_ADAPTIVE_JS,/localStorage\.setItem/);
  assert.match(GIS_ADAPTIVE_JS,/createObjectURL/);
  assert.doesNotMatch(GIS_ADAPTIVE_JS,/upload|ingest|D1\.prepare|\bpostMessage\b/);
+});
+
+test("wide mode ribbon is removed and original map gets the reclaimed space",()=>{
+ assert.doesNotMatch(GIS_ADAPTIVE_JS,/gisp-modebar|gisp-mode-links|gisp-layout-toggle|gisp-export-open/);
+ assert.ok(!GIS_ADAPTIVE_CSS.includes(".gisp-modebar{"));
+ assert.ok(GIS_ADAPTIVE_CSS.includes("height:calc(100dvh - 138px)"));
+ assert.ok(GIS_ADAPTIVE_JS.includes("gisp-mode-select"));
+ assert.ok(GIS_ADAPTIVE_JS.includes("gisp-map-actions"));
+ assert.ok(GIS_ADAPTIVE_JS.includes('data-map-tool="export"'));
 });
