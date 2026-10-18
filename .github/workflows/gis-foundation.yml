@@ -1,0 +1,38 @@
+name: GIS Foundation checks
+on:
+  pull_request:
+    paths: ['gis/**', '.github/workflows/gis-foundation.yml', '.github/CODEOWNERS']
+  push:
+    branches: [main]
+    paths: ['gis/**', '.github/workflows/gis-foundation.yml', '.github/CODEOWNERS']
+permissions:
+  contents: read
+jobs:
+  gis-foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: gis
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install isolated GIS dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Fail on cross-environment template reuse
+        run: npm run check:isolation
+      - name: Basic committed secret pattern scan
+        run: npm run check:secrets
+      - name: Type check contracts and frontend
+        run: npm run typecheck
+      - name: Run GIS Foundation regression tests
+        run: npm test
+      - name: Build standalone synthetic frontend
+        run: npm run build
+      - name: Check GIS fail-closed API syntax
+        run: node --check apps/api/src/index.js
+# Deliberately no Cloudflare deploy or D1 migration until Foundation Gate 00 passes.

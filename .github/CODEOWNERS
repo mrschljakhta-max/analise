@@ -1,0 +1,5 @@
+# Foundation code ownership. Enable GitHub "Require review from Code Owners" in branch rules.
+* @mrschljakhta-max
+/gis/ @mrschljakhta-max
+/api/ @mrschljakhta-max
+/.github/workflows/ @mrschljakhta-max

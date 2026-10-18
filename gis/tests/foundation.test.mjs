@@ -1,0 +1,14 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+import {verifyTemplates} from "../scripts/check-isolation.mjs";
+import api from "../apps/api/src/index.js";
+const source=path=>readFileSync(new URL("../"+path,import.meta.url),"utf8");
+test("Dev Staging and Production GIS resource templates are distinct",()=>assert.equal(verifyTemplates(),true));
+test("No GIS template uses ANALISE production D1 or R2",()=>{for(const env of ["dev","staging","production"])assert.doesNotMatch(source("infra/wrangler."+env+".toml.example"),/analise-db|analise-private-documents/);});
+test("GIS api denies workspace and data routes until RBAC gate",async()=>{let r=await api.fetch(new Request("https://unit.example/api/workspaces"),{});assert.equal(r.status,503);r=await api.fetch(new Request("https://unit.example/api/layers"),{});assert.equal(r.status,503)});
+test("GIS API is not mounted in production ANALISE Worker",()=>assert.doesNotMatch(source("../api/src/index.js"),/import.+gis\//));
+test("Contracts model version, workspace roles, revisions and pinned layers",()=>{const s=source("packages/contracts/src/index.ts");for(const k of ["CONTRACT_VERSION","WorkspaceMembership","DatasetRevision","PINNED_REVISION","FOLLOW_LATEST","OperationState"])assert.ok(s.includes(k))});
+test("Synthetic map has no external tile URL or live D1 data",()=>{const s=source("apps/web/src/SyntheticMap.tsx");assert.doesNotMatch(s,/https?:\/\//);assert.match(s,/Fixture A/);assert.match(s,/Fixture B/)});
+test("CI never deploys Workers and runs isolated foundation gates",()=>{const s=source("../.github/workflows/gis-foundation.yml");assert.doesNotMatch(s,/wrangler deploy(?! --dry-run)/);assert.match(s,/check:isolation/)});
+test("No real D1 IDs in GIS configuration",()=>{for(const env of ["dev","staging","production"])assert.match(source("infra/wrangler."+env+".toml.example"),/_D1_UUID_REQUIRED/)});
