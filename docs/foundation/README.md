@@ -16,7 +16,7 @@ Architecture: **one GitHub monorepo**, two logical applications.
 | FND-002 | GIS Foundation CI, Node tests, typechecks, build and secret-pattern guard | PARTIAL: no lockfile / `npm ci`; no real staging E2E |
 | FND-003 | Versioned Workspace/Project/Dataset/Layer/Feature contracts | PARTIAL: no API or schema integration |
 | FND-004/005 | Independent three-environment resource templates and separation test | BLOCKED: provision real D1/R2/KV/Queues and Access, verify binding IDs |
-| FND-006/009 | GIS API always denies data reads/writes pending resource RBAC | PARTIAL: Workspace membership checks, IDOR tests and real Access still missing |
+| FND-006/009 | GIS API always denies data reads/writes pending resource RBAC; existing ANALISE `/api/files` list/upload/download now requires an active `admin` | PARTIAL: no per-workspace membership, object-level permissions or negative IDOR suite for GIS yet |
 | FND-007/008 | Standalone synthetic React/MapLibre UI shell with themes and density | PARTIAL: requires CI build evidence and later user approval to integrate into ANALISE |
 | FND-010...018 | Design/POC/DR/acceptance work pending | NOT ACCEPTED |
 
@@ -44,3 +44,7 @@ npm run dev
 ```
 
 Run this synthetic-only preview locally; it has no connection to Cloudflare or the ANALISE database. GIS Foundation CI will validate bundling in GitHub Actions. Do not mark FND-002 PASS until lockfile and `npm ci` are in place.
+
+## Change in existing ANALISE file permissions
+
+As a conservative interim control, the previously general authenticated `/api/files` listing, download and upload routes now require `user.role === "admin"` and `active === 1`. Existing administrator workflows remain; nonadmins receive HTTP 403 before any D1 or R2 access. This is **not** object-scoped RBAC: delegated access remains blocked until explicit ACLs and IDOR tests are implemented. RAW document routes and existing Purgatory data have not been modified.
