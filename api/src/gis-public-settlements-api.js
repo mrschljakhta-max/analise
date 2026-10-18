@@ -77,9 +77,32 @@ export async function gisPublicSettlementsApi(req,env,user){
     region:String(r.region||"").slice(0,120),lat,lon});
   }
   const more=(rows.results||[]).length>200;
+  // If the viewport is empty, return truthful civilian source metadata.
+  // Never treat a zero-match viewport as proof that the gazetteer is empty.
+  let source_health;
+  if(offset===0&&valid.length===0){
+   try{
+    const count=await env.DB.prepare(`SELECT COUNT(*) AS active,
+      COALESCE(SUM(CASE WHEN
+        json_extract(data_json,'$.lat') IS NOT NULL AND
+        json_extract(data_json,'$.lon') IS NOT NULL AND
+        TRIM(CAST(json_extract(data_json,'$.lat') AS TEXT)) <> '' AND
+        TRIM(CAST(json_extract(data_json,'$.lon') AS TEXT)) <> '' AND
+        CAST(json_extract(data_json,'$.lat') AS REAL) BETWEEN -85 AND 85 AND
+        CAST(json_extract(data_json,'$.lon') AS REAL) BETWEEN -180 AND 180
+        THEN 1 ELSE 0 END),0) AS geocoded
+      FROM directory_entries
+      WHERE directory_id='settlements' AND archived_at IS NULL`).first();
+    const active=Number(count?.active),geocoded=Number(count?.geocoded);
+    source_health=Number.isSafeInteger(active)&&Number.isSafeInteger(geocoded)&&
+     active>=0&&geocoded>=0&&geocoded<=active?
+     {status:"available",active,geocoded}:{status:"unverified"};
+   }catch{source_health={status:"unavailable"}}
+  }
   return json({directory:"settlements",source_status:"available",items:valid.slice(0,200),
    more,next_offset:more&&offset<1800?offset+200:null,
-   truncated:more&&offset>=1800,offset,limit:200});
+   truncated:more&&offset>=1800,offset,limit:200,
+   ...(source_health?{source_health}:{})});
  }catch{
   // Do not expose query details or schema errors to the browser.
   return json({error:"Не вдалося прочитати публічний довідник населених пунктів"},503);
