@@ -140,3 +140,25 @@ test("Saved Documents UI and admin menu are protected and rendered as scripts",a
  const unauthorized=await worker.fetch(new Request("https://unit.example/api/saved-documents"),{});
  assert.equal(unauthorized.status,503);
 });
+
+test("RAW registry paginates all revisions without duplicating or truncating after 30",async()=>{
+ const rows=Array.from({length:34},(_,i)=>({
+  id:"00000000-0000-4000-8000-"+String(i+1).padStart(12,"0"),
+  report_name:"ANALISE-RAW-V1:demo"+i,version:i+1,created_at:"2026-10-18T07:00:00Z",
+  snapshot_json:JSON.stringify({...fixture(1),source_name:"Document "+i+".docx",record_count:1})
+ }));
+ const env={RAW_SAVE_ENABLED:"true",DB:{prepare(sql){
+  assert.match(sql,/LIMIT 31 OFFSET \?/);
+  return {bind(offset){return {async all(){return {results:rows.slice(offset,offset+31)}}}}};
+ }}};
+ const one=await rawDocumentsApi(new Request("https://unit.example/api/raw-documents?offset=0"),
+  env,actor,["api","raw-documents"]);
+ const a=await one.json();assert.equal(a.items.length,30);assert.equal(a.has_more,true);
+ const two=await rawDocumentsApi(new Request("https://unit.example/api/raw-documents?offset=30"),
+  env,actor,["api","raw-documents"]);
+ const b=await two.json();assert.equal(b.items.length,4);assert.equal(b.has_more,false);
+ assert.equal(new Set([...a.items,...b.items].map(x=>x.id)).size,34);
+ const wrong=await rawDocumentsApi(new Request("https://unit.example/api/raw-documents?offset=-30"),
+  env,actor,["api","raw-documents"]);
+ assert.equal(wrong.status,400);
+});
