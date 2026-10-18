@@ -38,6 +38,8 @@ import {GIS_ADAPTIVE_JS} from "./gis-adaptive-client.js";
 import {GIS_ADAPTIVE_CSS} from "./gis-adaptive-assets.js";
 import {GIS_PUBLIC_SETTLEMENTS_JS,GIS_PUBLIC_SETTLEMENTS_CSS} from "./gis-public-settlements-assets.js";
 import {GIS_TRAINING_LAYERS_JS,GIS_TRAINING_LAYERS_CSS} from "./gis-training-layers-assets.js";
+import {GIS_HISTORY_HTML,GIS_HISTORY_CSS,GIS_HISTORY_JS} from "./gis-history-assets.js";
+import {historicalAuditApi} from "./gis-history-api.js";
 import {gisPublicSettlementsApi} from "./gis-public-settlements-api.js";
 import { dashboardApi } from "./dashboard-api.js";
 import { VP_SP_HTML, VP_SP_CSS } from "./vp-sp-assets.js";
@@ -353,6 +355,15 @@ export default {
       const auth=await identity(req,env);
       if(auth.err)return auth.err;
       const user=auth.user;
+      // Read-only historical metadata: report-version uploads and administrative audit counts.
+      if(url.pathname==="/api/gis-history/data")return historicalAuditApi(req,env,user);
+      if(["/api/gis-history","/api/gis-history.css","/api/gis-history.js"].includes(url.pathname)){
+        if(req.method!=="GET")return error(405,"Дозволено лише GET");
+        if(user.role!=="admin"||user.active!==1)return error(403,"Лише адміністратор");
+        if(url.pathname==="/api/gis-history")return appAsset(GIS_HISTORY_HTML,"text/html; charset=utf-8");
+        if(url.pathname==="/api/gis-history.css")return appAsset(GIS_HISTORY_CSS,"text/css; charset=utf-8");
+        return appAsset(GIS_HISTORY_JS,"text/javascript; charset=utf-8");
+      }
       // Public gazetteer ONLY: bounded read from the existing settlements directory.
       // No other ANALISE operational directory is queried or exposed by GIS.
       if(url.pathname==="/api/gis/settlements")return gisPublicSettlementsApi(req,env,user);
