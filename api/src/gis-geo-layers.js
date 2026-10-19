@@ -1,5 +1,5 @@
 // Single source of truth for GEOGRAPHIC map layers (admin GIS preview).
--- mode: points | grid | off
+// mode: points | grid | off
 // Never use this file to expose frequencies, unit names, or raw report text.
 export const GIS_GEO_LAYERS = Object.freeze({
   stations: Object.freeze({ enabled: true, mode: "points" }),
