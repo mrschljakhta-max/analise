@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {Script} from "node:vm";
 import {gisReferenceSummaryApi} from "../src/gis-reference-summary-api.js";
+import {GIS_REFERENCE_VISIBILITY} from "../src/gis-reference-visibility.js";
 import {GIS_TRAINING_LAYERS_JS,GIS_TRAINING_LAYERS_CSS} from "../src/gis-training-layers-assets.js";
 import {GIS_PREVIEW_HTML} from "../src/gis-preview-assets.js";
 const index=readFileSync(new URL("../src/index.js",import.meta.url),"utf8");
@@ -161,7 +162,8 @@ test("DOM behavior: real D1 categories and model names replace fake icons; retry
    }
   })};
  };
- new Script(GIS_TRAINING_LAYERS_JS).runInNewContext({document,fetch,AbortController});
+ new Script(GIS_TRAINING_LAYERS_JS).runInNewContext({document,fetch,AbortController,
+   window:{ANALISE_GIS_REFERENCE_VISIBILITY:GIS_REFERENCE_VISIBILITY}});
  await new Promise(setImmediate);
  assert.equal(fetches,1);
  assert.equal(map.children.length,0,"no fake markers or overlays can be attached to map");
