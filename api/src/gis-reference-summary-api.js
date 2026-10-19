@@ -1,3 +1,4 @@
+import {isVisibleReference} from "./gis-reference-visibility.js";
 // Read-only, admin-only reference data for the GIS side panel.
 // This endpoint never selects positions, UAV events, station call signs,
 // unit affiliations, frequencies, MGRS, routes or other operational fields.
@@ -99,11 +100,16 @@ export async function gisReferenceSummaryApi(req,env,user){
  if(new URL(req.url).search)return respond({error:"Непідтримувані параметри"},400);
  if(!env?.DB)return respond({error:"D1 недоступна",overall_status:"database_unavailable"},503);
  const sources={};
- for(const [key,fn] of [["uav",models],["vp",positions],["station",stations]]){
+ const readers=[["uav",models],["vp",positions],["station",stations]];
+ let enabled=0,available=0;
+ for(const [key,fn] of readers){
+  if(!isVisibleReference(key)){sources[key]={status:"disabled"};continue}
+  enabled++;
   try{sources[key]=await fn(env.DB)}catch(e){sources[key]=failure(e)}
+  if(sources[key].status==="available")available++;
  }
- const available=Object.values(sources).filter(x=>x.status==="available").length;
  return respond({read_only:true,geographic:false,
-  overall_status:available===3?"available":available===0?"unavailable":"partial",
+  overall_status:enabled===0?"disabled":available===enabled?"available":
+   available===0?"unavailable":"partial",
   sources});
 }
