@@ -1,0 +1,60 @@
+name: Restore index.js
+on:
+  workflow_dispatch:
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Restore index.js from a489110 and wire GIS geo routes
+        run: |
+          set -euo pipefail
+          GOOD=a489110a5fde9d512ff582d8889aac7661008f38
+          git show "${GOOD}:api/src/index.js" > api/src/index.js
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path("api/src/index.js")
+          main = p.read_text()
+          if "SEE_ARTIFACT" in main or len(main) < 1000:
+              raise SystemExit("restored file looks wrong")
+          if "tryGisGeoApi" not in main:
+              old_import = 'import {gisCivilGridApi} from "./gis-civil-grid-api.js";'
+              new_import = old_import + "\nimport {tryGisGeoApi, tryGisGeoAsset} from \"./gis-geo-routes.js\";"
+              if old_import not in main:
+                  raise SystemExit("import anchor missing")
+              main = main.replace(old_import, new_import, 1)
+              old_routes = '''      if(url.pathname==="/api/gis/civil-grid")return gisCivilGridApi(req,env,user);
+      // Distinct admin-only D1 reference counts; no geographic military layer.
+      if(url.pathname==="/api/gis/reference-summary")return gisReferenceSummaryApi(req,env,user);'''
+              new_routes = '''      if(url.pathname==="/api/gis/civil-grid")return gisCivilGridApi(req,env,user);
+      {
+        const geo = tryGisGeoApi(url, req, env, user);
+        if (geo) return geo;
+      }
+      // Distinct admin-only D1 reference counts; no geographic military layer.
+      if(url.pathname==="/api/gis/reference-summary")return gisReferenceSummaryApi(req,env,user);'''
+              if old_routes not in main:
+                  raise SystemExit("routes anchor missing")
+              main = main.replace(old_routes, new_routes, 1)
+              marker = 'if(url.pathname==="/api/gis-reference-visibility.js")return appAsset(GIS_REFERENCE_VISIBILITY_JS,"text/javascript; charset=utf-8",opts);'
+              if marker not in main:
+                  raise SystemExit("asset anchor missing")
+              main = main.replace(
+                  marker,
+                  marker + "\n        {\n          const asset = tryGisGeoAsset(url, req, appAsset, opts);\n          if (asset) return asset;\n        }",
+                  1,
+              )
+              p.write_text(main)
+          print("index.js bytes", p.stat().st_size)
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add api/src/index.js
+          git diff --cached --quiet && echo "No changes" && exit 0
+          git commit -m "fix: restore api/src/index.js and wire GIS geo routes"
+          git push origin HEAD:main
