@@ -1,0 +1,58 @@
+name: ANALISE D1 ledger reconciliation (manual only)
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type RECONCILE_0016_0019_ONLY to record ONLY the two already-applied migrations'
+        required: true
+        type: string
+      bookmark_saved:
+        description: 'I have saved a valid current D1 Time Travel bookmark independently'
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: analise-d1-schema-migration
+  cancel-in-progress: false
+
+jobs:
+  ledger:
+    name: Check exact DDL and reconcile journal only
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Test fail-closed reconciliation gates
+        run: node --test tests/d1-migration-drift.test.js tests/d1-migration-reconcile.test.js
+      - name: Require explicit operator confirmation
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+          BOOKMARK_SAVED: ${{ inputs.bookmark_saved }}
+        run: |
+          if [ "$CONFIRM" != 'RECONCILE_0016_0019_ONLY' ] || [ "$BOOKMARK_SAVED" != 'true' ]; then
+            echo 'Explicit ledger-only authorization and saved Time Travel bookmark are required.' >&2
+            exit 1
+          fi
+      - name: Verify full D1 SQL and reconcile ONLY migration ledger
+        run: node scripts/reconcile-d1-migrations.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ANALISE_D1_LEDGER_MODE: apply
+          ANALISE_D1_LEDGER_CONFIRM: ${{ inputs.confirm }}
+          ANALISE_D1_BOOKMARK_CONFIRMED: ${{ inputs.bookmark_saved }}
