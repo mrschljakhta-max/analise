@@ -39,6 +39,7 @@ import {GIS_ADAPTIVE_CSS} from "./gis-adaptive-assets.js";
 import {GIS_PUBLIC_SETTLEMENTS_JS,GIS_PUBLIC_SETTLEMENTS_CSS} from "./gis-public-settlements-assets.js";
 import {GIS_TRAINING_LAYERS_JS,GIS_TRAINING_LAYERS_CSS} from "./gis-training-layers-assets.js";
 import {gisReferenceSummaryApi} from "./gis-reference-summary-api.js";
+import {GIS_REFERENCE_VISIBILITY_JS} from "./gis-reference-visibility.js";
 import {gisCivilRegionsApi} from "./gis-civil-regions-api.js";
 import {gisCivilGridApi} from "./gis-civil-grid-api.js";
 import {GIS_OVERVIEW_JS,GIS_OVERVIEW_CSS} from "./gis-overview-assets.js";
@@ -386,7 +387,7 @@ export default {
       // Distinct admin-only D1 reference counts; no geographic military layer.
       if(url.pathname==="/api/gis/reference-summary")return gisReferenceSummaryApi(req,env,user);
       // Access-protected map assets; separate public settlement overlay stays opt-in.
-      if (["/api/gis-preview","/api/gis-preview.css","/api/gis-preview.js","/api/gis-adaptive.css","/api/gis-adaptive.js","/api/gis-settlements.js","/api/gis-settlements.css","/api/gis-training-layers.js","/api/gis-training-layers.css","/api/gis-overview.js","/api/gis-overview.css"].includes(url.pathname)) {
+      if (["/api/gis-preview","/api/gis-preview.css","/api/gis-preview.js","/api/gis-adaptive.css","/api/gis-adaptive.js","/api/gis-settlements.js","/api/gis-settlements.css","/api/gis-training-layers.js","/api/gis-training-layers.css","/api/gis-reference-visibility.js","/api/gis-overview.js","/api/gis-overview.css"].includes(url.pathname)) {
         if(req.method!=="GET")return error(405,"Лише перегляд GET");
         if(user.role!=="admin"||user.active!==1)return error(403,"Лише адміністратор");
         const opts={csp:GIS_PREVIEW_CSP,referrerPolicy:"strict-origin-when-cross-origin"};
@@ -398,6 +399,7 @@ export default {
         if(url.pathname==="/api/gis-settlements.css")return appAsset(GIS_PUBLIC_SETTLEMENTS_CSS,"text/css; charset=utf-8",opts);
         if(url.pathname==="/api/gis-training-layers.js")return appAsset(GIS_TRAINING_LAYERS_JS,"text/javascript; charset=utf-8",opts);
         if(url.pathname==="/api/gis-training-layers.css")return appAsset(GIS_TRAINING_LAYERS_CSS,"text/css; charset=utf-8",opts);
+        if(url.pathname==="/api/gis-reference-visibility.js")return appAsset(GIS_REFERENCE_VISIBILITY_JS,"text/javascript; charset=utf-8",opts);
         if(url.pathname==="/api/gis-overview.js")return appAsset(GIS_OVERVIEW_JS,"text/javascript; charset=utf-8",opts);
         if(url.pathname==="/api/gis-overview.css")return appAsset(GIS_OVERVIEW_CSS,"text/css; charset=utf-8",opts);
         return appAsset(GIS_PREVIEW_JS,"text/javascript; charset=utf-8",opts);
